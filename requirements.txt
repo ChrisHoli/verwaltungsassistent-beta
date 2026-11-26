@@ -1,0 +1,4 @@
+deltachat-rpc-client==2.66.0
+deltachat-rpc-server==2.66.0
+piper-tts==1.8.0
+tzdata

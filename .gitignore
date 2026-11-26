@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 testdaten/echt/
 CLAUDE.local.md
+daten/
+.pytest_cache/

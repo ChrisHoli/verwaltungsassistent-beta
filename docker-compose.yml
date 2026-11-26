@@ -1,0 +1,15 @@
+services:
+  momo:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./daten:/daten
+    # Kein Port nach außen: Momo spricht nur über Delta Chat.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g

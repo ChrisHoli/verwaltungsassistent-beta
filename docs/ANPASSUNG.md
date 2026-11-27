@@ -83,6 +83,7 @@ DSGVO: Der Anbieter allein reicht nicht. Die Person muss wissen und einverstande
 - **Aktenzeichen und Zahlen** beim Vorlesen einzeln und langsam („neun, acht, sieben, De …“), Beträge als „1087 Euro und 40 Cent“.
 - **„Bis wann?“ prüft Momo selbst:** Steht im Brief „bis zum …“ oder „spätestens …“ und die KI hat das Datum nicht sicher, sagt Momo „nicht sicher“ statt „keine Frist“. Fristen wie „innerhalb von 14 Tagen“ zitiert er wörtlich, rechnet aber nicht selbst.
 - **Antworten schreiben:** frei sprechen → Momo macht einen korrekten Brief mit Aktenzeichen → liest ihn vor → schickt ihn als PDF in den Chat zum Drucken, Mailen, Hochladen. Momo versendet nichts selbst.
+- **Fristen und Erinnerungen (V8):** Nach jedem Brief fragt Momo je Frist „Soll ich dich an den … erinnern?“. Erinnert wird nur, was mit Ja bestätigt ist (Antwort auf genau diese Nachricht; ohne Zitat gilt die letzte Frage der letzten 12 Stunden), 7 und 2 Tage vorher und am Tag selbst, ab 9 Uhr. Nach einem Ausfall kommt nur die jüngste Erinnerung, nicht alle verpassten. „erledigt“ beendet die Erinnerungen. Bei einem Bescheid mit Widerspruchsmöglichkeit rechnet Momo keine Frist aus, sondern bietet nach drei Wochen eine Wiedervorlage an. Briefe mit gleichem Aktenzeichen gehören zum selben Vorgang. Gespeichert in `daten/vorgaenge.json`, Übersicht als `Fristen.txt` im Speicherort.
 - Bei Fristen und Widerspruch: Hinweis auf Beratungsstelle. Momo ist keine Rechtsberatung.
 
 ## Betrieb und Installation

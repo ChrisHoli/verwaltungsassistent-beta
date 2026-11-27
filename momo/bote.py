@@ -16,9 +16,10 @@ from . import saetze
 from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT, KEIN_BRIEF,
                         NICHT_VERSTANDEN, NOCH_NICHT, SPRACHE_AN, SPRACHE_AUS, Antwort)
 from .einstellungen import Einstellungen
+from .vorgaenge import ERLEDIGT, ERLEDIGT_ZITAT, JA, NEIN, Vorgaenge, erinnerung_text, frage_text, ueberblick_text
 from .zuhoeren import Ohr, ZuhoerFehler
 from .briefe import Briefablage, endung_fuer
-from .aufnahme import SCHLECHTES_FOTO, aufnehmen
+from .aufnahme import SCHLECHTES_FOTO, aufnehmen, datum_lesbar
 from .erklaeren import erklaerung
 from .besitzer import Besitzer
 from .gespraech import FEHLER, Gespraech
@@ -55,6 +56,7 @@ class Bote:
         self.stimme = stimme
         self.ohr = ohr
         self.einstellungen = Einstellungen(konfig.daten, konfig.vorlesen)
+        self.vorgaenge = Vorgaenge(konfig.daten)
         self.gespraech = gespraech
         self.briefe = briefe
         self._lese_uhr: threading.Timer | None = None
@@ -81,6 +83,9 @@ class Bote:
             log.info("Besitzer gekoppelt (Kontakt %s).", absender.id)
             self._einladung_entfernen()
         log.info("Nachricht vom Besitzer: Art %s", art)
+        self.vorgaenge.chat_merken(s.chat.id)
+        zitat = getattr(s, "quote", None) or {}
+        zitiert = zitat.get("message_id") if zitat.get("kind") == "WithMessage" else None
         if art in ("bild", "datei") and s.file:
             antwort = self._brief_aufnehmen(s)
             if neu:
@@ -90,7 +95,7 @@ class Bote:
         if art == "sprache" and s.file and not neu:
             self._senden(s.chat, self._zuhoeren(Path(s.file)))
             return
-        self._senden(s.chat, self.antworten_auf(art, s.text or "", neu))
+        self._senden(s.chat, self.antworten_auf(art, s.text or "", neu, zitiert))
 
     # --- Sprechen statt tippen ---
     def _zuhoeren(self, datei: Path) -> Antwort:
@@ -108,9 +113,16 @@ class Bote:
         return Antwort(f"Ich habe verstanden: „{text}“\n\n{antwort.text}", vorlesen=antwort.vorlesen,
                        sprechtext=antwort.zum_vorlesen)
 
-    def antworten_auf(self, art: str, text: str, neu: bool) -> Antwort:
+    def antworten_auf(self, art: str, text: str, neu: bool, zitiert: int | None = None) -> Antwort:
         """Wünsche wie „Lies mir den Brief noch mal vor“ erledigt Momo selbst, alles andere das Gespräch."""
+        if art == "text" and not neu:
+            antwort = self._frist_antwort(text, zitiert)
+            if antwort is not None:
+                return self._gemerkt(text, antwort)
         wunsch = saetze.erkennen(text) if art == "text" and not neu else None
+        if wunsch in (saetze.WOCHE, saetze.FRISTEN):
+            tage = 7 if wunsch == saetze.WOCHE else None
+            return self._gemerkt(text, Antwort(ueberblick_text(self.vorgaenge.kommend(tage), tage)))
         if wunsch == saetze.SPRACHE_AN:
             self.einstellungen.vorlesen = "immer"
             log.info("Einstellung: Vorlesen immer")
@@ -126,6 +138,54 @@ class Bote:
             # Nochmal vorlesen heißt: wirklich vorlesen, auch wenn sonst nur Text eingestellt ist
             return self._gemerkt(text, Antwort(brief.text, sprechtext=brief.sprechtext, immer_vorlesen=True))
         return self.gespraech.antworten(art, text, neu)
+
+    def _frist_antwort(self, text: str, zitiert: int | None) -> Antwort | None:
+        """Ja / Nein / erledigt auf Momos Frage nach einer Frist oder auf eine Erinnerung."""
+        kurz = len(text.strip()) <= 60
+        erledigt = ERLEDIGT_ZITAT if zitiert is not None else ERLEDIGT
+        art = ("erledigt" if erledigt.search(text) else "ja" if JA.match(text) else
+               "nein" if NEIN.match(text) else None) if kurz else None
+        if art is None:
+            return None
+        frage = self.vorgaenge.frage_zu(zitiert)
+        if frage is None and art == "erledigt" and zitiert is None:
+            offen = self.vorgaenge.bestaetigte()
+            if len(offen) == 1:
+                frage = offen[0]
+            elif offen:
+                return Antwort("Ich erinnere dich an mehrere Dinge. Welches hast du erledigt? "
+                               "Antworte bitte direkt auf meine Erinnerung dazu.")
+        if frage is None:
+            return None
+        f = self.vorgaenge.frist(frage)
+        tag = datum_lesbar(f["datum"])
+        if art == "erledigt":
+            self.vorgaenge.setzen(frage, "erledigt")
+            log.info("Frist erledigt")
+            return Antwort("Super, das hast du gut gemacht. Ich erinnere dich nicht mehr daran.")
+        if art == "nein":
+            if f["status"] == "bestaetigt":
+                return Antwort(f"In Ordnung. Ich erinnere dich trotzdem noch einmal vor dem {tag}. "
+                               "Wenn du es erledigt hast, sag: erledigt.")
+            self.vorgaenge.setzen(frage, "abgelehnt")
+            log.info("Frist abgelehnt")
+            return Antwort("In Ordnung. Daran erinnere ich dich nicht.")
+        if f["status"] == "bestaetigt":
+            return Antwort(f"Gut. Ich denke an den {tag}.")
+        self.vorgaenge.setzen(frage, "bestaetigt")
+        self._uebersicht_ablegen()
+        log.info("Frist bestätigt")
+        if f["art"] == "wiedervorlage":
+            return Antwort(f"Gut. Ich erinnere dich am {tag} an den Widerspruch.")
+        return Antwort(f"Gut. Ich erinnere dich an den {tag}.")
+
+    def _uebersicht_ablegen(self) -> None:
+        """Fristen als einfache Textdatei in den Speicherort, damit auch Helfer sie sehen."""
+        try:
+            text = ueberblick_text(self.vorgaenge.kommend(None), None) + "\n"
+            self.briefe.ablage.schreiben("Fristen.txt", text.encode())
+        except Exception as e:  # nicht wichtig genug, um etwas anderes aufzuhalten
+            log.warning("Fristen-Übersicht nicht gespeichert: %s", str(e)[:150])
 
     def _gemerkt(self, frage: str, antwort: Antwort) -> Antwort:
         self.gespraech.merken("nutzer", frage)
@@ -178,22 +238,58 @@ class Bote:
                 log.info("Brief gelesen %s: pruefen=%s, verdacht=%s, fristen=%s", vorgang, ergebnis["pruefen"],
                          ergebnis["verdacht_manipulation"], len(ergebnis["fristen"]))
                 antwort = erklaerung(ergebnis, seiten)
+                nummer = self.vorgaenge.brief_eintragen(vorgang, ergebnis)
+                frueher = self.vorgaenge.frueher_zur_akte(nummer)
+                if frueher:
+                    zusatz = (f"Zu dieser Nummer hast du mir schon {len(frueher)} Brief geschickt." if len(frueher) == 1
+                              else f"Zu dieser Nummer hast du mir schon {len(frueher)} Briefe geschickt.")
+                    antwort = Antwort(antwort.text + "\n" + zusatz, sprechtext=antwort.zum_vorlesen + " " + zusatz)
                 self.gespraech.merken("momo", antwort.text)
                 self.einstellungen.brief_merken(antwort)
                 self._senden(chat, antwort)
+                self._fristen_fragen(chat, nummer)
             except Exception:
                 log.exception("Brief lesen fehlgeschlagen (%s)", vorgang)
                 self._senden(chat, Antwort(FEHLER["sonstig"]))
 
+    def _fristen_fragen(self, chat, nummer: int) -> None:
+        brief = self.vorgaenge.daten["briefe"][nummer]
+        for k, f in enumerate(brief["fristen"][:3]):
+            nachricht = self._senden(chat, Antwort(frage_text(brief, f)))
+            if nachricht is not None:
+                self.vorgaenge.frage_merken(nummer, k, nachricht.id)
+        if brief["fristen"]:
+            self._uebersicht_ablegen()
+
+    # --- Erinnern (eigener Faden, schaut alle fünf Minuten) ---
+    def _erinnern(self, konto) -> None:
+        if self.vorgaenge.chat is None:
+            return
+        for frage, stufe in self.vorgaenge.faellig():
+            brief = self.vorgaenge.daten["briefe"][frage.brief]
+            heute = self.vorgaenge._heute()
+            text = erinnerung_text(brief, self.vorgaenge.frist(frage), stufe, heute)
+            nachricht = self._senden(konto.get_chat_by_id(self.vorgaenge.chat), Antwort(text))
+            self.vorgaenge.erinnert(frage, stufe, nachricht.id if nachricht is not None else None)
+            log.info("Erinnerung geschickt (%s Tage vorher)", stufe)
+
+    def _erinnern_schleife(self, konto, halt: threading.Event) -> None:
+        warten = 60  # kurz nach dem Start einmal nachsehen, dann alle fünf Minuten
+        while not halt.wait(warten):
+            warten = 300
+            try:
+                self._erinnern(konto)
+            except Exception:
+                log.exception("Erinnern fehlgeschlagen")
+
     # --- Senden ---
-    def _senden(self, chat, antwort: Antwort) -> None:
+    def _senden(self, chat, antwort: Antwort):
         datei = None
         if antwort.vorlesen and (antwort.immer_vorlesen or self.einstellungen.vorlesen == "immer"):
             datei = self.stimme.sprechen(antwort.zum_vorlesen, self.tmp)
         if datei:
-            chat.send_message(text=antwort.text, file=str(datei), viewtype=ViewType.VOICE)
-        else:
-            chat.send_text(antwort.text)
+            return chat.send_message(text=antwort.text, file=str(datei), viewtype=ViewType.VOICE)
+        return chat.send_text(antwort.text)
 
     # --- Start ---
     def _aufraeumen(self) -> None:
@@ -234,6 +330,9 @@ class Bote:
             haken = events.HookCollection()
             haken.on(events.NewMessage(is_info=False))(self._bei_nachricht)
             bot = Bot(konto, haken)
+            halt = threading.Event()
+            threading.Thread(target=self._erinnern_schleife, args=(konto, halt), daemon=True,
+                             name="erinnern").start()
             if self.besitzer.gekoppelt:
                 log.info("Mit Besitzer gekoppelt (Kontakt %s).", self.besitzer.kontakt_id)
                 self._einladung_entfernen()

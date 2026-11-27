@@ -8,6 +8,8 @@ import re
 NOCHMAL = "nochmal"
 SPRACHE_AN = "sprache_an"
 SPRACHE_AUS = "sprache_aus"
+WOCHE = "woche"
+FRISTEN = "fristen"
 
 _AUS = [
     r"\b(nur|bloß|lieber)\s+(mit\s+|per\s+|als\s+)?(text|schrift|geschrieben|schreiben)",
@@ -28,11 +30,23 @@ _NOCHMAL = [
 ]
 
 
+_WOCHE = [
+    r"\b(diese|nächste|naechste|kommende)\s+woche\b",
+    r"\bwas\s+(ist|steht)\s+(jetzt\s+|bald\s+|gerade\s+)?(wichtig|an)\b",
+    r"\bwas\s+muss\s+ich\s+(bald|demnächst|jetzt)\b",
+]
+_FRISTEN = [
+    r"\b(welche|meine|alle)\s+(fristen|termine)\b",
+    r"\bwelche\s+(frist|termin)\w*\s+(habe|hab)\s+ich\b",
+]
+
+
 def erkennen(text: str) -> str | None:
     t = " ".join((text or "").lower().split())
     if len(t) > 160:  # lange Nachrichten sind Fragen, keine Wünsche
         return None
-    for muster, wunsch in ((_AUS, SPRACHE_AUS), (_AN, SPRACHE_AN), (_NOCHMAL, NOCHMAL)):
+    for muster, wunsch in ((_AUS, SPRACHE_AUS), (_AN, SPRACHE_AN), (_WOCHE, WOCHE), (_FRISTEN, FRISTEN),
+                           (_NOCHMAL, NOCHMAL)):
         if any(re.search(m, t) for m in muster):
             return wunsch
     return None

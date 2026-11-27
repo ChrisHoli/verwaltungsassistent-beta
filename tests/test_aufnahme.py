@@ -1,7 +1,8 @@
 import json
 
 from momo.aufnahme import (aufnehmen, brief_als_daten, datum_lesbar, json_aus, pruefen_und_kuerzen,
-                           steht_im_text, zusammenfassung)
+                           steht_im_text)
+from momo.erklaeren import erklaerung
 from momo.ki import KiAnbieter
 from momo.lesen import brief_ist_schlecht
 from tools.testbriefe import BRIEFE, bewerten
@@ -33,6 +34,7 @@ GUT = {
     "fristen": [obj("2026-12-03", "am 03.12.2026 um 09:30 Uhr")],
     "betraege": [],
     "verdacht_manipulation": False,
+    "was_ist_das": "Das Jobcenter lädt dich zu einem Gespräch ein.",
 }
 
 
@@ -60,7 +62,7 @@ def test_falsches_datum_seite_und_json():
 
 def test_manipulation_erzwingt_pruefen():
     e = pruefen_und_kuerzen(dict(GUT, verdacht_manipulation=True), [SEITE])
-    assert e["pruefen"] and "Ungewöhnliches" in zusammenfassung(e)
+    assert e["pruefen"] and "Ungewöhnliches" in erklaerung(e, [SEITE]).text
 
 
 def test_steht_im_text_toleriert_ocr_fehler():
@@ -70,7 +72,7 @@ def test_steht_im_text_toleriert_ocr_fehler():
 
 def test_zusammenfassung_und_datum():
     e = pruefen_und_kuerzen(GUT, [SEITE])
-    text = zusammenfassung(e)
+    text = erklaerung(e, [SEITE]).text
     assert "Jobcenter Musterstadt" in text and "3. Dezember 2026" in text and "Beratungsstelle" in text
     assert datum_lesbar("2026-03-01") == "1. März 2026"
 

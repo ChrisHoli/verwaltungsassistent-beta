@@ -15,7 +15,8 @@ from .ablage import AblageFehler
 from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT,
                         Antwort)
 from .briefe import Briefablage, endung_fuer
-from .aufnahme import SCHLECHTES_FOTO, aufnehmen, zusammenfassung
+from .aufnahme import SCHLECHTES_FOTO, aufnehmen
+from .erklaeren import erklaerung
 from .besitzer import Besitzer
 from .gespraech import FEHLER, Gespraech
 from .ki import KiFehler
@@ -127,9 +128,9 @@ class Bote:
                 self.briefe.ergebnis_ablegen(vorgang, seiten, ergebnis)
                 log.info("Brief gelesen %s: pruefen=%s, verdacht=%s, fristen=%s", vorgang, ergebnis["pruefen"],
                          ergebnis["verdacht_manipulation"], len(ergebnis["fristen"]))
-                text = zusammenfassung(ergebnis)
-                self.gespraech.merken("momo", text)
-                self._senden(chat, Antwort(text))
+                antwort = erklaerung(ergebnis, seiten)
+                self.gespraech.merken("momo", antwort.text)
+                self._senden(chat, antwort)
             except Exception:
                 log.exception("Brief lesen fehlgeschlagen (%s)", vorgang)
                 self._senden(chat, Antwort(FEHLER["sonstig"]))
@@ -138,7 +139,7 @@ class Bote:
     def _senden(self, chat, antwort: Antwort) -> None:
         datei = None
         if antwort.vorlesen and self.konfig.vorlesen == "immer":
-            datei = self.stimme.sprechen(antwort.text, self.tmp)
+            datei = self.stimme.sprechen(antwort.zum_vorlesen, self.tmp)
         if datei:
             chat.send_message(text=antwort.text, file=str(datei), viewtype=ViewType.VOICE)
         else:

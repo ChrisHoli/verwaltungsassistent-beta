@@ -13,7 +13,7 @@ from difflib import SequenceMatcher
 
 from .ki import KiAnbieter, Nachricht
 
-EINZELFELDER = ("dokumenttyp", "absender", "datum", "aktenzeichen", "handlungsbedarf")
+EINZELFELDER = ("dokumenttyp", "absender", "datum", "aktenzeichen", "handlungsbedarf", "widerspruch")
 DATUMSFELDER = {"datum"}
 
 ANWEISUNG = """Du liest Briefe von Behörden für einen Menschen mit Leseschwierigkeiten und ziehst die \
@@ -30,13 +30,19 @@ Felder:
 - absender: Behörde oder Stelle, die den Brief geschickt hat
 - datum: Datum des Briefs als JJJJ-MM-TT
 - aktenzeichen: Aktenzeichen, Kundennummer oder BG-Nummer
-- handlungsbedarf: was der Mensch tun soll, in einem kurzen Satz (oder "nichts")
+- handlungsbedarf: was der Mensch tun soll, als ein kurzer Satz in Leichter Sprache mit "du" \
+(z. B. "Schick dem Jobcenter deine Kontoauszüge."), ohne Datum; "Du musst nichts tun.", wenn nichts zu tun ist
+- widerspruch: {"wert": "ja", ...} mit dem Satz zum Widerspruch als Ausschnitt, wenn der Brief eine \
+Entscheidung ist, gegen die man Widerspruch einlegen kann (meist steht dort eine Rechtsbehelfsbelehrung); sonst null
 - fristen: Liste der Daten, bis zu denen der Mensch etwas tun muss (z. B. Unterlagen schicken, zahlen, \
 sich äußern), und der Termine, zu denen er kommen muss; "wert" als JJJJ-MM-TT. Nur Daten, die im Brief \
 als Datum stehen; nichts selbst ausrechnen. Keine Zeiträume wie Bewilligungs-, Abrechnungs- oder \
 Leistungszeitraum, kein Briefdatum.
 - betraege: Liste aller Geldbeträge; "wert" genau wie im Brief (z. B. "1.234,56 €")
 - verdacht_manipulation: true oder false
+- was_ist_das: ein kurzer Satz in Leichter Sprache, was für ein Brief das ist und worum es geht \
+(z. B. "Das Jobcenter lädt dich zu einem Gespräch ein."). Nur dieser Satz als Text (kein Objekt), \
+ohne Zahlen, Daten und Beträge.
 
 Antworte nur mit einem JSON-Objekt mit genau diesen Schlüsseln, ohne weiteren Text."""
 
@@ -94,10 +100,22 @@ def _wertobjekt(roh, seiten: list[str], datum: bool = False) -> tuple[dict | Non
     return {"wert": wert, "seite": seite, "ausschnitt": ausschnitt}, False
 
 
+def einfacher_satz(roh) -> str | None:
+    """Ein Satz ohne Zahlen, Links und Zeichen, die beim Vorlesen stören. Sonst None."""
+    if isinstance(roh, dict):
+        roh = roh.get("wert")
+    if not isinstance(roh, str):
+        return None
+    satz = re.sub(r"\s+", " ", roh).strip().strip('"„“')
+    if not 5 <= len(satz) <= 160 or re.search(r"\d|https?:|www\.|[<>{}\[\]*#@]", satz):
+        return None
+    return satz if satz[-1] in ".!?" else satz + "."
+
+
 def pruefen_und_kuerzen(roh: dict | None, seiten: list[str]) -> dict:
     if not isinstance(roh, dict):
         e = {f: None for f in EINZELFELDER}
-        e.update(fristen=[], betraege=[], verdacht_manipulation=False, pruefen=True)
+        e.update(fristen=[], betraege=[], verdacht_manipulation=False, was_ist_das=None, frist_im_text=None, pruefen=True)
         return e
     pruefen = False
     e: dict = {}
@@ -118,8 +136,37 @@ def pruefen_und_kuerzen(roh: dict | None, seiten: list[str]) -> dict:
             if obj:
                 e[feld].append(obj)
     e["verdacht_manipulation"] = roh.get("verdacht_manipulation") is True
+    if fristdaten_im_text(seiten) - {f["wert"] for f in e["fristen"]}:
+        pruefen = True  # im Brief steht eine Frist, die die KI nicht (sicher) gefunden hat
+    e["frist_im_text"] = fristdauer_im_text(seiten)
+    e["was_ist_das"] = None if e["verdacht_manipulation"] else einfacher_satz(roh.get("was_ist_das"))
     e["pruefen"] = pruefen or e["verdacht_manipulation"]
     return e
+
+
+DATUM_DE = r"(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})"
+FRIST_DATUM = re.compile(r"(?<!\d{4} )(?<!\d\.\d\d )\b(?:bis(?: zum)?|spätestens(?: am| bis(?: zum)?)?)\s+"
+                         + DATUM_DE, re.I)
+FRIST_DAUER = re.compile(r"\b(?:innerhalb|binnen)\s+(?:von\s+)?(?:eines|einer|zwei|drei|vier|\d{1,3})\s+"
+                         r"(?:Tag|Tage|Tagen|Woche|Wochen|Monats|Monat|Monaten)\b[^.\n]{0,50}", re.I)
+
+
+def _iso(tag: str, monat: str, jahr: str) -> str | None:
+    jahr = jahr if len(jahr) == 4 else "20" + jahr
+    wert = f"{jahr}-{int(monat):02d}-{int(tag):02d}"
+    return wert if _gueltiges_datum(wert) else None
+
+
+def fristdaten_im_text(seiten: list[str]) -> set[str]:
+    """Daten nach „bis zum“ oder „spätestens“ – Momos eigene Gegenprobe zur KI, ohne Zeiträume „vom … bis …“."""
+    text = re.sub(r"\s+", " ", "\n".join(seiten))
+    return {d for t in FRIST_DATUM.finditer(text) if (d := _iso(*t.groups()))}
+
+
+def fristdauer_im_text(seiten: list[str]) -> str | None:
+    """Erste Frist wie „innerhalb von 14 Tagen nach Erhalt“, wörtlich."""
+    t = FRIST_DAUER.search(re.sub(r"\s+", " ", "\n".join(seiten)))
+    return t.group(0).strip(" ,;") if t else None
 
 
 def json_aus(text: str) -> dict | None:
@@ -145,8 +192,6 @@ def aufnehmen(ki: KiAnbieter, seiten: list[str]) -> dict:
     return pruefen_und_kuerzen(json_aus(antwort), seiten)
 
 
-# --- Für den Chat: kurze Zusammenfassung in einfacher Sprache (ohne weitere KI) ---
-
 MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September",
           "Oktober", "November", "Dezember")
 
@@ -154,34 +199,6 @@ MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August"
 def datum_lesbar(iso: str) -> str:
     d = date.fromisoformat(iso)
     return f"{d.day}. {MONATE[d.month - 1]} {d.year}"
-
-
-def zusammenfassung(e: dict) -> str:
-    z = ["Ich habe deinen Brief gelesen."]
-    if e.get("absender"):
-        z.append(f"Er ist von: {e['absender']['wert']}.")
-    if e.get("dokumenttyp"):
-        z.append(f"Es ist: {e['dokumenttyp']['wert']}.")
-    if e.get("datum"):
-        z.append(f"Der Brief ist vom {datum_lesbar(e['datum']['wert'])}.")
-    if e.get("aktenzeichen"):
-        z.append(f"Aktenzeichen: {e['aktenzeichen']['wert']}. Vergleich die Nummer bitte mit dem Brief, "
-                 "bevor du sie benutzt.")
-    for f in e.get("fristen", []):
-        z.append(f"Wichtig: Frist oder Termin am {datum_lesbar(f['wert'])}.")
-    for b in e.get("betraege", [])[:3]:
-        z.append(f"Im Brief steht ein Betrag: {b['wert']}.")
-    if e.get("handlungsbedarf"):
-        z.append(f"Das sollst du tun: {e['handlungsbedarf']['wert'].rstrip('.')}.")
-    if len(z) == 1:
-        z.append("Ich habe aber nichts Wichtiges sicher gefunden.")
-    if e.get("verdacht_manipulation"):
-        z.append("Im Brief steht etwas Ungewöhnliches. Zeig ihn bitte einem Menschen, dem du vertraust.")
-    elif e.get("pruefen"):
-        z.append("Bei manchen Angaben bin ich mir nicht sicher. Schau bitte noch einmal mit jemandem drauf.")
-    if e.get("fristen"):
-        z.append("Bei Fristen kann dir auch eine Beratungsstelle helfen.")
-    return "\n".join(z)
 
 
 SCHLECHTES_FOTO = ("Ich kann deinen Brief leider nicht gut lesen. Bitte mach noch ein Foto: "

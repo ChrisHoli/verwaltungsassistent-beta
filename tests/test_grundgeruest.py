@@ -38,7 +38,7 @@ def test_antworten():
     assert ist_gruss("Hallo!") and ist_gruss(" hallo momo ") and not ist_gruss("Hallo, was steht im Brief?")
     assert "Ich bin Momo" in antworten("text", "Hallo", "Momo", False).text
     assert "Ich bin Momo" in antworten("bild", "", "Momo", True).text  # erste Nachricht = Begrüßung
-    assert "Bild" in antworten("bild", "", "Momo", False).text
+    assert "Nachricht" in antworten("sonst", "", "Momo", False).text
     assert "Sprachnachricht" in antworten("sprache", "", "Momo", False).text
 
 

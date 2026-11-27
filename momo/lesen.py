@@ -1,6 +1,7 @@
 """Texterkennung: Fotos und PDFs → Text je Seite (tesseract deu, pdftotext/pdftoppm). Alles lokal."""
 
 import logging
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -65,5 +66,17 @@ def seiten_lesen(teile: list[tuple[bytes, str]]) -> list[str]:
     return [s.strip() for s in seiten]
 
 
+def _anteil_woerter(text: str) -> float:
+    """Anteil der Stücke, die wie echte Wörter oder Zahlen aussehen (Rest = Texterkennungs-Müll)."""
+    stuecke = text.split()
+    if not stuecke:
+        return 0.0
+    gut = sum(1 for w in stuecke
+              if re.fullmatch(r"[(„\"]?[A-Za-zÄÖÜäöüß]{2,}(-[A-Za-zÄÖÜäöüß]+)*[.,:;!?)“\"]*", w)
+              or re.fullmatch(r"[\d.,:/€%§-]+", w) or w in ("-", "–", "·", "&", "§§"))
+    return gut / len(stuecke)
+
+
 def brief_ist_schlecht(seiten: list[str]) -> bool:
-    return sum(len(s.strip()) for s in seiten) < BRIEF_MINDESTLAENGE
+    text = "\n".join(seiten)
+    return len(text.strip()) < BRIEF_MINDESTLAENGE or _anteil_woerter(text) < 0.5

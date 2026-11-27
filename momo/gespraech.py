@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .antworten import Antwort, antworten, ist_gruss
 from .ki import KiAnbieter, KiFehler, Nachricht
+from .woerter import frage_nach_wort, wort_erklaert
 
 log = logging.getLogger(__name__)
 
@@ -78,6 +79,11 @@ class Gespraech:
             self._merken("momo", antwort.text)
             return antwort
         self._merken("nutzer", text)
+        wort = frage_nach_wort(text)
+        if wort:
+            antwort = Antwort(wort_erklaert(*wort))
+            self._merken("momo", antwort.text)
+            return antwort
         try:
             ki_text = fuer_vorlesen(self.ki.fragen(ANWEISUNG.format(name=self.name), self.verlauf))
             if not ki_text:

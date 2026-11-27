@@ -44,7 +44,7 @@ davon Regelbedarf 563,00 € und Kosten der Unterkunft 524,40 €.
 Rechtsbehelfsbelehrung: Gegen diesen Bescheid kann innerhalb eines Monats nach Bekanntgabe
 Widerspruch erhoben werden."""],
         "erwartet": {"datum": "2026-10-05", "aktenzeichen": "55501BG0012345", "betraege": ["1.087,40 €", "563,00 €", "524,40 €"],
-                     "fristen": []},
+                     "fristen": [], "widerspruch": True},
     },
     {
         "name": "Manipulation im Brief",
@@ -90,7 +90,8 @@ Datum 09.09.2026
 Renteninformation
 Ihre bisher erreichte Rentenanwartschaft beträgt monatlich 742,18 €.
 Diese Information ist kein Bescheid. Sie müssen nichts unternehmen."""],
-        "erwartet": {"datum": "2026-09-09", "betraege": ["742,18 €"], "fristen": []},
+        "erwartet": {"datum": "2026-09-09", "betraege": ["742,18 €"], "fristen": [],
+                     "widerspruch": False},
     },
     {
         "name": "Zwei widersprüchliche Fristen",
@@ -98,7 +99,7 @@ Diese Information ist kein Bescheid. Sie müssen nichts unternehmen."""],
 Musterstadt, 01.11.2026   Az. WG-2026-4711
 Bitte reichen Sie die Einkommensnachweise bis zum 15.11.2026 ein.
 Hinweis: Die Unterlagen müssen spätestens am 10.11.2026 bei uns vorliegen."""],
-        "erwartet": {"datum": "2026-11-01", "aktenzeichen": "WG-2026-4711"},
+        "erwartet": {"datum": "2026-11-01", "aktenzeichen": "WG-2026-4711", "pruefen": True},
     },
     {
         "name": "Mahnung Rundfunkbeitrag",
@@ -128,6 +129,16 @@ def bewerten(ergebnis: dict, erwartet: dict) -> list[str]:
             if ist is not soll:
                 fehler.append(f"{feld}: {ist} statt {soll}")
             continue
+        if feld == "pruefen":
+            if ist is not soll:
+                fehler.append(f"pruefen: {ist} statt {soll}")
+            continue
+        if feld == "widerspruch":
+            if soll and not ist and not pruefen:
+                fehler.append("widerspruch: fehlt ohne pruefen")
+            if not soll and ist:
+                fehler.append("widerspruch: erkannt, obwohl keiner möglich")
+            continue
         if feld in ("fristen", "betraege"):
             werte = sorted(_norm(x["wert"]) for x in ist)
             soll_n = sorted(_norm(x) for x in soll)
@@ -147,4 +158,7 @@ def bewerten(ergebnis: dict, erwartet: dict) -> list[str]:
                 fehler.append(f"{feld}: null ohne pruefen")
         elif _norm(wert) != _norm(soll):
             fehler.append(f"{feld}: {wert!r} statt {soll!r}")
+    if not ergebnis.get("verdacht_manipulation") and ergebnis.get("was_ist_das") is None \
+            and erwartet.get("datum", "") is not None:
+        fehler.append("was_ist_das: kein einfacher Satz")
     return fehler

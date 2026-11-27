@@ -98,11 +98,11 @@ def test_gespraech_nutzt_ki_und_merkt_verlauf(tmp_path):
     g = Gespraech(ki, "Momo", tmp_path / "verlauf.json")
     assert "Ich bin Momo" in g.antworten("text", "Hallo", True).text  # Begrüßung ohne KI
     assert ki.aufrufe == []
-    a = g.antworten("text", "Was ist ein Bescheid?", False)
+    a = g.antworten("text", "Muss ich da hingehen?", False)
     assert a.text == "Ein Bescheid ist ein Brief."
     anweisung, verlauf = ki.aufrufe[0]
     assert "Leichte Sprache" in anweisung and "Momo" in anweisung
-    assert verlauf[-1] == Nachricht("nutzer", "Was ist ein Bescheid?")
+    assert verlauf[-1] == Nachricht("nutzer", "Muss ich da hingehen?")
     assert len(Gespraech(ki, "Momo", tmp_path / "verlauf.json").verlauf) == 4  # überlebt Neustart
 
 

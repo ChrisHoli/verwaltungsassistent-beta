@@ -26,6 +26,6 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest
 .venv/bin/python -m pytest
 ```
 
-Stand: V5 – Momo nimmt Fotos und PDFs von Briefen an, legt sie im gewählten Speicherort ab (Ordner oder rclone: Nextcloud, Drive, iCloud …), erkennt den Text lokal (tesseract) und zieht mit der KI Absender, Datum, Aktenzeichen, Fristen und Beträge heraus – jede Angabe mit Seite und wörtlichem Ausschnitt, von Momo nachgeprüft. Abnahme: `python -m tools.pruefe_briefe` (zehn erfundene Briefe). Erklären in Leichter Sprache folgt in V6.
+Stand: V6 – Momo nimmt Fotos und PDFs von Briefen an, legt sie im gewählten Speicherort ab (Ordner oder rclone: Nextcloud, Drive, iCloud …), erkennt den Text lokal (tesseract) und zieht mit der KI Absender, Datum, Aktenzeichen, Fristen und Beträge heraus – jede Angabe mit Seite und wörtlichem Ausschnitt, von Momo nachgeprüft. Die Antwort beantwortet drei Fragen (Was ist das? Was musst du tun? Bis wann?), erklärt schwere Wörter aus einer festen Liste (`momo/woerter.py`) und liest Aktenzeichen Zeichen für Zeichen vor. Abnahme: `python -m tools.pruefe_briefe` (zehn erfundene Briefe, mit `--zeigen` samt Antworttext).
 
 Lizenz: MIT (siehe `LICENSE`).

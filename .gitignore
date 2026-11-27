@@ -4,6 +4,6 @@ __pycache__/
 .venv/
 testdaten/echt/
 CLAUDE.local.md
-daten/
+/daten/
 .pytest_cache/
 docker-compose.override.yml

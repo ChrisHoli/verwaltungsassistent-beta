@@ -10,7 +10,10 @@ from pathlib import Path
 from deltachat_rpc_client import Bot, DeltaChat, Rpc, events
 from deltachat_rpc_client.const import ViewType
 
-from .antworten import Antwort
+from .ablage import AblageFehler
+from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT,
+                        Antwort)
+from .briefe import Briefablage, endung_fuer
 from .besitzer import Besitzer
 from .gespraech import Gespraech
 from .konfig import Konfig
@@ -36,10 +39,11 @@ def art_von(view_type) -> str:
 
 
 class Bote:
-    def __init__(self, konfig: Konfig, stimme: Stimme, gespraech: Gespraech):
+    def __init__(self, konfig: Konfig, stimme: Stimme, gespraech: Gespraech, briefe: Briefablage):
         self.konfig = konfig
         self.stimme = stimme
         self.gespraech = gespraech
+        self.briefe = briefe
         self.besitzer = Besitzer(konfig.besitzer_adressen, konfig.daten / "besitzer.json")
         self.tmp = konfig.daten / "tmp"
 
@@ -62,7 +66,29 @@ class Bote:
             log.info("Besitzer gekoppelt (Kontakt %s).", absender.id)
             self._einladung_entfernen()
         log.info("Nachricht vom Besitzer: Art %s", art)
+        if art in ("bild", "datei") and s.file:
+            antwort = self._brief_aufnehmen(s)
+            if neu:
+                self._senden(s.chat, self.gespraech.antworten("text", "Hallo", True))
+            self._senden(s.chat, antwort)
+            return
         self._senden(s.chat, self.gespraech.antworten(art, s.text or "", neu))
+
+    def _brief_aufnehmen(self, s) -> Antwort:
+        endung = endung_fuer(getattr(s, "file_mime", None), getattr(s, "file_name", None))
+        if endung is None:
+            log.info("Datei nicht verwendbar (Typ %s)", getattr(s, "file_mime", "?"))
+            return Antwort(DATEI_UNBEKANNT)
+        try:
+            daten = Path(s.file).read_bytes()
+            aufnahme = self.briefe.aufnehmen(daten, endung)
+        except (OSError, AblageFehler) as e:
+            log.error("Brief nicht gespeichert: %s", str(e)[:200])
+            return Antwort(BRIEF_FEHLER)
+        log.info("Brief gespeichert: %s Seite %s (%s KB)", aufnahme.vorgang, aufnahme.seite, len(daten) // 1024)
+        if aufnahme.seite == 1:
+            return Antwort(BRIEF_ERSTE_SEITE)
+        return Antwort(BRIEF_WEITERE_SEITE.format(seite=aufnahme.seite))
 
     # --- Senden ---
     def _senden(self, chat, antwort: Antwort) -> None:

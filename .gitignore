@@ -6,3 +6,4 @@ testdaten/echt/
 CLAUDE.local.md
 daten/
 .pytest_cache/
+docker-compose.override.yml

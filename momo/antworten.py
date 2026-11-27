@@ -17,6 +17,14 @@ NOCH_NICHT = {
     "text": "Ich habe deine Nachricht bekommen. Ich lerne gerade noch. Bald kann ich dir mehr helfen.",
 }
 
+BRIEF_ERSTE_SEITE = (
+    "Danke. Ich habe deinen Brief gespeichert. Hat er noch mehr Seiten? "
+    "Dann schick mir die gleich hinterher. Lesen lerne ich gerade noch."
+)
+BRIEF_WEITERE_SEITE = "Seite {seite} ist auch gespeichert."
+BRIEF_FEHLER = "Ich konnte deinen Brief gerade nicht speichern. Bitte schick ihn später noch einmal."
+DATEI_UNBEKANNT = "Diese Datei kann ich nicht verwenden. Schick mir bitte ein Foto oder ein PDF von deinem Brief."
+
 GRUSSWORTE = {"hallo", "hi", "hey", "moin", "servus", "guten tag", "hallo momo", "start", "/start", "hilfe", "/hilfe"}
 
 

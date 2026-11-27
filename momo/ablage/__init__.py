@@ -1,7 +1,11 @@
-"""Speicherort. Jede Ablage ist ein Adapter hinter Ablage; rclone (Nextcloud, Drive, iCloud …) kommt in V4."""
+"""Speicherort. Jede Ablage ist ein Adapter hinter Ablage: ordner (lokal) oder rclone (Nextcloud, Drive, iCloud …)."""
 
 from abc import ABC, abstractmethod
 from pathlib import Path, PurePosixPath
+
+
+class AblageFehler(RuntimeError):
+    pass
 
 
 class Ablage(ABC):
@@ -13,6 +17,9 @@ class Ablage(ABC):
 
     @abstractmethod
     def liste(self, ordner: str = "") -> list[str]: ...
+
+    def pruefen(self) -> None:
+        """Wirft AblageFehler, wenn der Speicherort nicht erreichbar ist."""
 
 
 def _sicherer_pfad(pfad: str) -> PurePosixPath:
@@ -28,6 +35,9 @@ class OrdnerAblage(Ablage):
 
     def _ziel(self, pfad: str) -> Path:
         return self.wurzel / _sicherer_pfad(pfad)
+
+    def pruefen(self) -> None:
+        self.wurzel.mkdir(parents=True, exist_ok=True)
 
     def schreiben(self, pfad: str, daten: bytes) -> None:
         ziel = self._ziel(pfad)
@@ -49,4 +59,8 @@ class OrdnerAblage(Ablage):
 def ablage_waehlen(art: str, ziel: str) -> Ablage:
     if art == "ordner":
         return OrdnerAblage(ziel)
-    raise ValueError(f"Unbekannte Ablage {art!r} – kommt in V4")
+    if art == "rclone":
+        from .rclone import RcloneAblage
+
+        return RcloneAblage(ziel)
+    raise ValueError(f"Unbekannte Ablage {art!r} (möglich: ordner, rclone)")

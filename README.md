@@ -26,6 +26,6 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest
 .venv/bin/python -m pytest
 ```
 
-Stand: V3 – Momo antwortet mit KI (Mistral über die API oder Claude-Abo zum Testen) in Leichter Sprache, als Text und Sprachnachricht. Briefe lesen und Cloud folgen ab V4.
+Stand: V4 – Momo antwortet mit KI (Mistral über die API oder Claude-Abo zum Testen) in Leichter Sprache, als Text und Sprachnachricht, und speichert Fotos und PDFs von Briefen im gewählten Speicherort (Ordner oder rclone: Nextcloud, Drive, iCloud …). Briefe lesen folgt in V5.
 
 Lizenz: MIT (siehe `LICENSE`).

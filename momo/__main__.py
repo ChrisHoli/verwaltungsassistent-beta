@@ -2,6 +2,7 @@ import logging
 
 from .ablage import ablage_waehlen
 from .bote import Bote
+from .briefe import Briefablage
 from .gespraech import Gespraech
 from .ki import anbieter_waehlen
 from .konfig import Konfig
@@ -15,12 +16,17 @@ def main() -> None:
     konfig = Konfig.aus_umgebung()
     konfig.daten.mkdir(parents=True, exist_ok=True)
     ki = anbieter_waehlen(konfig.ki)
-    ablage_waehlen(konfig.ablage, konfig.ablage_ziel)
+    ablage = ablage_waehlen(konfig.ablage, konfig.ablage_ziel)
+    try:
+        ablage.pruefen()
+        ablage_ok = "erreichbar"
+    except Exception as e:  # Start nicht verhindern, aber deutlich melden
+        ablage_ok = f"NICHT erreichbar ({str(e)[:120]})"
     stimme = Stimme(konfig.stimme)
-    logging.info("%s startet · KI: %s · Ablage: %s · Vorlesen: %s (Stimme %s)", konfig.name, ki.name,
-                 konfig.ablage, konfig.vorlesen, "da" if stimme.verfuegbar else "fehlt")
+    logging.info("%s startet · KI: %s · Ablage: %s %s · Vorlesen: %s (Stimme %s)", konfig.name, ki.name,
+                 konfig.ablage, ablage_ok, konfig.vorlesen, "da" if stimme.verfuegbar else "fehlt")
     gespraech = Gespraech(ki, konfig.name, konfig.daten / "verlauf.json")
-    Bote(konfig, stimme, gespraech).starten()
+    Bote(konfig, stimme, gespraech, Briefablage(ablage)).starten()
 
 
 if __name__ == "__main__":

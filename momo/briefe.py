@@ -1,0 +1,56 @@
+"""Briefe aufnehmen: Fotos und PDFs aus dem Chat als Vorgang in der Ablage speichern.
+
+Aufbau je Vorgang: Briefe/<JJJJ-MM-TT_HHMM>/original/seite-01.jpg … (später text/, json/, antwortbriefe/).
+Seiten, die kurz hintereinander kommen, gehören zum selben Brief.
+"""
+
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from .ablage import Ablage
+
+ZUSAMMEN_SEKUNDEN = 5 * 60
+ENDUNGEN = {
+    "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic",
+    "image/heif": "heic", "application/pdf": "pdf",
+}
+ZEITZONE = ZoneInfo("Europe/Berlin")
+
+
+def endung_fuer(mime: str | None, dateiname: str | None) -> str | None:
+    if mime and mime.lower() in ENDUNGEN:
+        return ENDUNGEN[mime.lower()]
+    if dateiname and "." in dateiname:
+        e = dateiname.rsplit(".", 1)[1].lower()
+        if e in {"jpg", "jpeg", "png", "webp", "heic", "pdf"}:
+            return "jpg" if e == "jpeg" else e
+    return None
+
+
+@dataclass(frozen=True)
+class Aufnahme:
+    vorgang: str
+    seite: int
+    pfad: str
+
+
+class Briefablage:
+    def __init__(self, ablage: Ablage, uhr=time.time):
+        self.ablage = ablage
+        self.uhr = uhr
+        self._vorgang: str | None = None
+        self._seite = 0
+        self._zuletzt = 0.0
+
+    def aufnehmen(self, daten: bytes, endung: str) -> Aufnahme:
+        jetzt = self.uhr()
+        if self._vorgang is None or jetzt - self._zuletzt > ZUSAMMEN_SEKUNDEN:
+            self._vorgang = "Briefe/" + datetime.fromtimestamp(jetzt, ZEITZONE).strftime("%Y-%m-%d_%H%M%S")
+            self._seite = 0
+        seite = self._seite + 1
+        pfad = f"{self._vorgang}/original/seite-{seite:02d}.{endung}"
+        self.ablage.schreiben(pfad, daten)
+        self._seite, self._zuletzt = seite, jetzt
+        return Aufnahme(self._vorgang, seite, pfad)

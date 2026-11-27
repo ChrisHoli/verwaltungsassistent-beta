@@ -54,3 +54,17 @@ class Briefablage:
         self.ablage.schreiben(pfad, daten)
         self._seite, self._zuletzt = seite, jetzt
         return Aufnahme(self._vorgang, seite, pfad)
+
+    def originale(self, vorgang: str) -> list[tuple[bytes, str]]:
+        """(Daten, Endung) aller Seiten eines Vorgangs, in Reihenfolge."""
+        pfade = [p for p in self.ablage.liste(f"{vorgang}/original") if "/original/seite-" in p]
+        return [(self.ablage.lesen(p), p.rsplit(".", 1)[-1]) for p in sorted(pfade)]
+
+    def ergebnis_ablegen(self, vorgang: str, seiten: list[str], aufnahme: dict | None) -> None:
+        import json
+
+        for i, text in enumerate(seiten, start=1):
+            self.ablage.schreiben(f"{vorgang}/text/seite-{i:02d}.txt", text.encode())
+        if aufnahme is not None:
+            self.ablage.schreiben(f"{vorgang}/json/aufnahme.json",
+                                  json.dumps(aufnahme, ensure_ascii=False, indent=2).encode())

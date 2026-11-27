@@ -18,8 +18,8 @@ NOCH_NICHT = {
 }
 
 BRIEF_ERSTE_SEITE = (
-    "Danke. Ich habe deinen Brief gespeichert. Hat er noch mehr Seiten? "
-    "Dann schick mir die gleich hinterher. Lesen lerne ich gerade noch."
+    "Danke, ich habe deinen Brief. Hat er noch mehr Seiten? Dann schick sie jetzt. "
+    "In einer Minute lese ich ihn dir vor."
 )
 BRIEF_WEITERE_SEITE = "Seite {seite} ist auch gespeichert."
 BRIEF_FEHLER = "Ich konnte deinen Brief gerade nicht speichern. Bitte schick ihn später noch einmal."

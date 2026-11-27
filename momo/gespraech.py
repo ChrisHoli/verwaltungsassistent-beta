@@ -24,7 +24,7 @@ keine Überschriften, keine Links, keine Emojis.
 - Du machst keine Rechtsberatung. Bei Widerspruch, Fristen, Kürzungen oder Rückforderungen sagst du: \
 Hol dir Hilfe bei einer Beratungsstelle, zum Beispiel Sozialberatung, Erwerbslosenberatung oder Verbraucherzentrale.
 - Du verschickst nichts und bezahlst nichts.
-- Hat der Mensch einen Brief, bittest du um ein Foto davon. Briefe lesen lernst du gerade noch.
+- Hat der Mensch einen Brief, bittest du um ein Foto davon. Den liest du dann. Was du schon über einen Brief gesagt hast, steht im Gesprächsverlauf.
 """
 
 FEHLER = {
@@ -61,6 +61,9 @@ class Gespraech:
         tmp = self.datei.with_suffix(".neu")
         tmp.write_text(json.dumps([n.__dict__ for n in self.verlauf], ensure_ascii=False))
         tmp.replace(self.datei)
+
+    def merken(self, rolle: str, text: str) -> None:
+        self._merken(rolle, text)
 
     def _merken(self, rolle: str, text: str) -> None:
         self.verlauf = (self.verlauf + [Nachricht(rolle, text)])[-VERLAUF_MAX:]

@@ -3,7 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 RCLONE_CONFIG=/daten/rclone.conf
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg rclone ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg rclone ca-certificates tesseract-ocr tesseract-ocr-deu poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -22,6 +22,7 @@ RUN if [ "$MIT_CLAUDE" = "1" ]; then \
     fi
 
 COPY momo ./momo
+COPY tools ./tools
 
 # Ohne Root-Rechte laufen; Datenordner gehört dem Dienstnutzer
 RUN useradd --system --uid 10001 --home /daten momo \

@@ -4,6 +4,7 @@ Muster aus einer bewährten Delta-Chat-Brücke übernommen. Im Log nie Nachricht
 """
 
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -14,12 +15,17 @@ from .ablage import AblageFehler
 from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT,
                         Antwort)
 from .briefe import Briefablage, endung_fuer
+from .aufnahme import SCHLECHTES_FOTO, aufnehmen, zusammenfassung
 from .besitzer import Besitzer
-from .gespraech import Gespraech
+from .gespraech import FEHLER, Gespraech
+from .ki import KiFehler
+from .lesen import brief_ist_schlecht, seiten_lesen
 from .konfig import Konfig
 from .stimme import Stimme
 
 log = logging.getLogger(__name__)
+
+LESEN_NACH_SEKUNDEN = 45
 
 ARTEN = {
     ViewType.TEXT: "text",
@@ -44,6 +50,8 @@ class Bote:
         self.stimme = stimme
         self.gespraech = gespraech
         self.briefe = briefe
+        self._lese_uhr: threading.Timer | None = None
+        self._lese_sperre = threading.Lock()
         self.besitzer = Besitzer(konfig.besitzer_adressen, konfig.daten / "besitzer.json")
         self.tmp = konfig.daten / "tmp"
 
@@ -86,9 +94,45 @@ class Bote:
             log.error("Brief nicht gespeichert: %s", str(e)[:200])
             return Antwort(BRIEF_FEHLER)
         log.info("Brief gespeichert: %s Seite %s (%s KB)", aufnahme.vorgang, aufnahme.seite, len(daten) // 1024)
+        self._lesen_planen(s.chat, aufnahme.vorgang)
         if aufnahme.seite == 1:
             return Antwort(BRIEF_ERSTE_SEITE)
         return Antwort(BRIEF_WEITERE_SEITE.format(seite=aufnahme.seite))
+
+    # --- Brief lesen (nach kurzer Pause, damit alle Seiten da sind) ---
+    def _lesen_planen(self, chat, vorgang: str) -> None:
+        if self._lese_uhr is not None:
+            self._lese_uhr.cancel()
+        self._lese_uhr = threading.Timer(LESEN_NACH_SEKUNDEN, self._brief_lesen, args=(chat, vorgang))
+        self._lese_uhr.daemon = True
+        self._lese_uhr.start()
+
+    def _brief_lesen(self, chat, vorgang: str) -> None:
+        with self._lese_sperre:
+            try:
+                seiten = seiten_lesen(self.briefe.originale(vorgang))
+                log.info("Texterkennung %s: %s Seiten, %s Zeichen", vorgang, len(seiten),
+                         sum(len(s) for s in seiten))
+                if brief_ist_schlecht(seiten):
+                    self.briefe.ergebnis_ablegen(vorgang, seiten, None)
+                    self._senden(chat, Antwort(SCHLECHTES_FOTO))
+                    return
+                try:
+                    ergebnis = aufnehmen(self.gespraech.ki, seiten)
+                except KiFehler as e:
+                    log.error("KI beim Lesen: %s (%s)", e.art, str(e)[:200])
+                    self.briefe.ergebnis_ablegen(vorgang, seiten, None)
+                    self._senden(chat, Antwort(FEHLER.get(e.art, FEHLER["sonstig"])))
+                    return
+                self.briefe.ergebnis_ablegen(vorgang, seiten, ergebnis)
+                log.info("Brief gelesen %s: pruefen=%s, verdacht=%s, fristen=%s", vorgang, ergebnis["pruefen"],
+                         ergebnis["verdacht_manipulation"], len(ergebnis["fristen"]))
+                text = zusammenfassung(ergebnis)
+                self.gespraech.merken("momo", text)
+                self._senden(chat, Antwort(text))
+            except Exception:
+                log.exception("Brief lesen fehlgeschlagen (%s)", vorgang)
+                self._senden(chat, Antwort(FEHLER["sonstig"]))
 
     # --- Senden ---
     def _senden(self, chat, antwort: Antwort) -> None:

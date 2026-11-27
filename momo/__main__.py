@@ -2,6 +2,7 @@ import logging
 
 from .ablage import ablage_waehlen
 from .bote import Bote
+from .gespraech import Gespraech
 from .ki import anbieter_waehlen
 from .konfig import Konfig
 from .stimme import Stimme
@@ -18,7 +19,8 @@ def main() -> None:
     stimme = Stimme(konfig.stimme)
     logging.info("%s startet · KI: %s · Ablage: %s · Vorlesen: %s (Stimme %s)", konfig.name, ki.name,
                  konfig.ablage, konfig.vorlesen, "da" if stimme.verfuegbar else "fehlt")
-    Bote(konfig, stimme).starten()
+    gespraech = Gespraech(ki, konfig.name, konfig.daten / "verlauf.json")
+    Bote(konfig, stimme, gespraech).starten()
 
 
 if __name__ == "__main__":

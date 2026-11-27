@@ -43,11 +43,11 @@ def test_antworten():
 
 
 def test_ki_geruest():
-    assert isinstance(anbieter_waehlen("keine"), KeineKi)
+    assert isinstance(anbieter_waehlen("keine", {}), KeineKi)
     with pytest.raises(KiNichtVerfuegbar):
-        KeineKi().fragen("a", "b")
+        KeineKi().fragen("a", [])
     with pytest.raises(ValueError):
-        anbieter_waehlen("unbekannt")
+        anbieter_waehlen("unbekannt", {})
 
 
 def test_ordner_ablage(tmp_path):

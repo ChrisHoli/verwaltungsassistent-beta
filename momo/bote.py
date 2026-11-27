@@ -10,8 +10,9 @@ from pathlib import Path
 from deltachat_rpc_client import Bot, DeltaChat, Rpc, events
 from deltachat_rpc_client.const import ViewType
 
-from .antworten import Antwort, antworten
+from .antworten import Antwort
 from .besitzer import Besitzer
+from .gespraech import Gespraech
 from .konfig import Konfig
 from .stimme import Stimme
 
@@ -35,9 +36,10 @@ def art_von(view_type) -> str:
 
 
 class Bote:
-    def __init__(self, konfig: Konfig, stimme: Stimme):
+    def __init__(self, konfig: Konfig, stimme: Stimme, gespraech: Gespraech):
         self.konfig = konfig
         self.stimme = stimme
+        self.gespraech = gespraech
         self.besitzer = Besitzer(konfig.besitzer_adressen, konfig.daten / "besitzer.json")
         self.tmp = konfig.daten / "tmp"
 
@@ -60,7 +62,7 @@ class Bote:
             log.info("Besitzer gekoppelt (Kontakt %s).", absender.id)
             self._einladung_entfernen()
         log.info("Nachricht vom Besitzer: Art %s", art)
-        self._senden(s.chat, antworten(art, s.text or "", self.konfig.name, neu))
+        self._senden(s.chat, self.gespraech.antworten(art, s.text or "", neu))
 
     # --- Senden ---
     def _senden(self, chat, antwort: Antwort) -> None:

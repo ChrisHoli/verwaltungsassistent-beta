@@ -1,6 +1,9 @@
 services:
   momo:
-    build: .
+    build:
+      context: .
+      args:
+        MIT_CLAUDE: ${MIT_CLAUDE:-0}
     restart: unless-stopped
     env_file: .env
     environment:

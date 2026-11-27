@@ -60,14 +60,15 @@ Delta Chat (Handy / Computer)
 
 ## KI wählen
 
-Eine Schnittstelle `KiAnbieter`, mehrere Anschlüsse:
+Eine Schnittstelle `KiAnbieter` (`momo/ki/`), Auswahl über `MOMO_KI` in der `.env`:
 
-1. **ChatGPT-Abo („Mit ChatGPT anmelden“)** – Ziel. Seit 29.09.2026 für Go/Plus/Pro/Business in teilnehmenden Apps; bisher nur Partner + Vorschau für Open-Source- und persönliche Projekte. V3 klärt zuerst, ob Momo das nutzen darf und kann.
-2. **API-Schlüssel** – sofort möglich: OpenAI, Anthropic (Claude), Mistral (EU), jede OpenAI-kompatible Adresse. Für ein paar Briefe im Monat Cent-Beträge.
-3. **Lokale KI** (z. B. Ollama) – wenn der Bot auf einem starken Rechner läuft.
-4. **Claude-Abo des Betreibers** über Claude Code (`claude -p`) – für den Test durch den Betreiber selbst. Für echte Briefe einer anderen Person besser einen eigenen Zugang (API-Schlüssel oder deren Abo), damit ihre Daten nicht unter fremdem Konto laufen.
+1. **`mistral` – Mistral über die API (Hauptweg, seit 27.11.2026).** Französischer Anbieter, Verarbeitung in der EU, Schlüssel aus Mistral Studio, Abrechnung nach Verbrauch (Cent-Beträge). Training in der Konsole abschalten; auf Wunsch Zero Data Retention.
+2. **`claude-abo` – Claude über ein Abo** (Claude Code, `claude -p`, setup-token). Zum Testen durch den Betreiber. Claude Code läuft ohne Werkzeuge, Einstellungen und MCP. Bild mit `MIT_CLAUDE=1` bauen.
+3. Später möglich: weitere OpenAI-kompatible Adressen, lokale KI (Ollama), ChatGPT-Abo („Mit ChatGPT anmelden“, bisher nur Partner und Open-Source-Vorschau – zurückgestellt zugunsten Mistral).
 
-Momo schickt nur den erkannten Text an die KI, keine Fotos – außer der Betreiber erlaubt Bildeingabe ausdrücklich.
+Nur der Text geht an die KI, keine Fotos. Momo merkt sich die letzten 12 Nachrichten (`daten/verlauf.json`). Ins Log kommen nur der Verbrauch (Tokens) und Fehlerarten, nie Inhalte. Fällt die KI aus, sagt Momo das in einfachen Worten.
+
+DSGVO: Der Anbieter allein reicht nicht. Die Person muss wissen und einverstanden sein, dass ihre Briefe über den Bot und die KI laufen (vor V12 klären).
 
 ## Speicherort wählen
 
@@ -101,7 +102,7 @@ V0 Klären · V1 Repo und Grundregeln · V2 Grundgerüst Bot · V3 KI-Anschluss 
 ## Entscheidungen (V0, 27.11.2026)
 
 1. **Wo läuft der Bot:** auf holiwork-alpha, eigener Container, ohne Zugriff auf die anderen Dienste dort.
-2. **KI zum Testen:** das Claude-Abo des Betreibers (Anschluss 4). Vor dem Probelauf mit echten Briefen des Freundes neu entscheiden.
+2. **KI:** zum Testen das Claude-Abo des Betreibers; für den Betrieb Mistral über die API (EU, DSGVO). Entschieden am 27.11.2026.
 3. **Speicherort:** Nextcloud, über rclone/WebDAV mit eigenem Benutzer `momo` und App-Passwort – Momo sieht nur seinen eigenen Ordner.
 4. **Open Source:** ja, Lizenz MIT. Öffnet auch den Weg zur Open-Source-Vorschau von „Mit ChatGPT anmelden“ (V3).
 5. **Der Freund** installiert Delta Chat und scannt Momos QR-Code (V12).

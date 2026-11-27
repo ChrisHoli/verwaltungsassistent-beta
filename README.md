@@ -26,6 +26,6 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest
 .venv/bin/python -m pytest
 ```
 
-Stand: V2 Grundgerüst – Kopplung, Begrüßung als Text und Sprachnachricht (Piper). Briefe lesen, KI und Cloud folgen ab V3.
+Stand: V3 – Momo antwortet mit KI (Mistral über die API oder Claude-Abo zum Testen) in Leichter Sprache, als Text und Sprachnachricht. Briefe lesen und Cloud folgen ab V4.
 
 Lizenz: MIT (siehe `LICENSE`).

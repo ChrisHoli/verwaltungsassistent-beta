@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from .ablage import ablage_waehlen
 from .bote import Bote
@@ -7,6 +8,7 @@ from .gespraech import Gespraech
 from .ki import anbieter_waehlen
 from .konfig import Konfig
 from .stimme import Stimme
+from .zuhoeren import Ohr
 
 
 def main() -> None:
@@ -23,10 +25,12 @@ def main() -> None:
     except Exception as e:  # Start nicht verhindern, aber deutlich melden
         ablage_ok = f"NICHT erreichbar ({str(e)[:120]})"
     stimme = Stimme(konfig.stimme)
-    logging.info("%s startet · KI: %s · Ablage: %s %s · Vorlesen: %s (Stimme %s)", konfig.name, ki.name,
-                 konfig.ablage, ablage_ok, konfig.vorlesen, "da" if stimme.verfuegbar else "fehlt")
+    ohr = Ohr(konfig.whisper, Path("/app/whisper"))
+    logging.info("%s startet · KI: %s · Ablage: %s %s · Vorlesen: %s (Stimme %s) · Zuhören: %s (%s)", konfig.name,
+                 ki.name, konfig.ablage, ablage_ok, konfig.vorlesen, "da" if stimme.verfuegbar else "fehlt",
+                 "da" if ohr.verfuegbar else "fehlt", konfig.whisper)
     gespraech = Gespraech(ki, konfig.name, konfig.daten / "verlauf.json")
-    Bote(konfig, stimme, gespraech, Briefablage(ablage)).starten()
+    Bote(konfig, stimme, gespraech, Briefablage(ablage), ohr).starten()
 
 
 if __name__ == "__main__":

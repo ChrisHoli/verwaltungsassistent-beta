@@ -15,4 +15,4 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    mem_limit: 1g
+    mem_limit: 2g  # Whisper small braucht beim Zuhören etwa 700 MB

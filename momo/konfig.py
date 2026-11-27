@@ -18,6 +18,7 @@ class Konfig:
     ki: str
     ablage: str
     ablage_ziel: str
+    whisper: str = "small"
 
     @property
     def dc_ordner(self) -> Path:
@@ -41,4 +42,5 @@ class Konfig:
             ki=u.get("MOMO_KI", "keine").strip().lower(),
             ablage=u.get("MOMO_ABLAGE", "ordner").strip().lower(),
             ablage_ziel=u.get("MOMO_ABLAGE_ZIEL", str(daten / "ablage")).strip(),
+            whisper=u.get("MOMO_WHISPER", "small").strip() or "small",
         )

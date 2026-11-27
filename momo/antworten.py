@@ -7,11 +7,12 @@ BEGRUESSUNG = (
     "Ich helfe dir mit Briefen von Ämtern.\n"
     "Schick mir ein Foto von einem Brief.\n"
     "Dann sage ich dir: Was ist das? Was musst du tun? Bis wann?\n"
-    "Du kannst mich auch fragen, zum Beispiel: Was heißt Anhörung?"
+    "Du kannst mit mir sprechen: Schick mir einfach eine Sprachnachricht.\n"
+    "Zum Beispiel: Was heißt Anhörung? Oder: Lies mir den Brief noch mal vor."
 )
 
 NOCH_NICHT = {
-    "sprache": "Danke für deine Sprachnachricht. Zuhören lerne ich gerade noch. Bald kann ich das.",
+    "sprache": "Danke für deine Sprachnachricht. Zuhören kann ich gerade nicht. Schreib mir bitte oder versuch es später.",
     "text": "Ich habe deine Nachricht bekommen. Ich lerne gerade noch. Bald kann ich dir mehr helfen.",
 }
 
@@ -21,6 +22,12 @@ BRIEF_ERSTE_SEITE = (
 )
 BRIEF_WEITERE_SEITE = "Seite {seite} ist auch gespeichert."
 BRIEF_FEHLER = "Ich konnte deinen Brief gerade nicht speichern. Bitte schick ihn später noch einmal."
+NICHT_VERSTANDEN = ("Ich habe dich leider nicht verstanden. Sprich bitte noch einmal, "
+                    "langsam und nah am Handy.")
+SPRACHE_AN = "Gut. Ab jetzt antworte ich dir immer auch mit einer Sprachnachricht."
+SPRACHE_AUS = ("Gut. Ab jetzt antworte ich dir nur noch mit Text. "
+               "Wenn du wieder hören willst, sag: Antworte mit Sprache.")
+KEIN_BRIEF = "Ich habe noch keinen Brief von dir. Schick mir ein Foto davon, dann lese ich ihn dir vor."
 DATEI_UNBEKANNT = "Diese Datei kann ich nicht verwenden. Schick mir bitte ein Foto oder ein PDF von deinem Brief."
 
 GRUSSWORTE = {"hallo", "hi", "hey", "moin", "servus", "guten tag", "hallo momo", "start", "/start", "hilfe", "/hilfe"}
@@ -31,6 +38,7 @@ class Antwort:
     text: str
     vorlesen: bool = True
     sprechtext: str | None = None  # wenn das Vorlesen anders klingen soll als der Text
+    immer_vorlesen: bool = False  # auch wenn „nur Text“ eingestellt ist (z. B. „Lies mir das vor“)
 
     @property
     def zum_vorlesen(self) -> str:

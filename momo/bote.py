@@ -12,8 +12,11 @@ from deltachat_rpc_client import Bot, DeltaChat, Rpc, events
 from deltachat_rpc_client.const import ViewType
 
 from .ablage import AblageFehler
-from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT,
-                        Antwort)
+from . import saetze
+from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT, KEIN_BRIEF,
+                        NICHT_VERSTANDEN, NOCH_NICHT, SPRACHE_AN, SPRACHE_AUS, Antwort)
+from .einstellungen import Einstellungen
+from .zuhoeren import Ohr, ZuhoerFehler
 from .briefe import Briefablage, endung_fuer
 from .aufnahme import SCHLECHTES_FOTO, aufnehmen
 from .erklaeren import erklaerung
@@ -46,9 +49,12 @@ def art_von(view_type) -> str:
 
 
 class Bote:
-    def __init__(self, konfig: Konfig, stimme: Stimme, gespraech: Gespraech, briefe: Briefablage):
+    def __init__(self, konfig: Konfig, stimme: Stimme, gespraech: Gespraech, briefe: Briefablage,
+                 ohr: Ohr | None = None):
         self.konfig = konfig
         self.stimme = stimme
+        self.ohr = ohr
+        self.einstellungen = Einstellungen(konfig.daten, konfig.vorlesen)
         self.gespraech = gespraech
         self.briefe = briefe
         self._lese_uhr: threading.Timer | None = None
@@ -81,7 +87,50 @@ class Bote:
                 self._senden(s.chat, self.gespraech.antworten("text", "Hallo", True))
             self._senden(s.chat, antwort)
             return
-        self._senden(s.chat, self.gespraech.antworten(art, s.text or "", neu))
+        if art == "sprache" and s.file and not neu:
+            self._senden(s.chat, self._zuhoeren(Path(s.file)))
+            return
+        self._senden(s.chat, self.antworten_auf(art, s.text or "", neu))
+
+    # --- Sprechen statt tippen ---
+    def _zuhoeren(self, datei: Path) -> Antwort:
+        if self.ohr is None:
+            return Antwort(NOCH_NICHT["sprache"])
+        try:
+            text = self.ohr.umschreiben(datei)
+        except ZuhoerFehler as e:
+            log.error("Zuhören fehlgeschlagen: %s", e)
+            return Antwort(NICHT_VERSTANDEN)
+        if len(text) < 2:
+            return Antwort(NICHT_VERSTANDEN)
+        antwort = self.antworten_auf("text", text, False)
+        # Im Text steht dazu, was Momo verstanden hat – so fällt ein Hörfehler auf. Vorgelesen wird nur die Antwort.
+        return Antwort(f"Ich habe verstanden: „{text}“\n\n{antwort.text}", vorlesen=antwort.vorlesen,
+                       sprechtext=antwort.zum_vorlesen)
+
+    def antworten_auf(self, art: str, text: str, neu: bool) -> Antwort:
+        """Wünsche wie „Lies mir den Brief noch mal vor“ erledigt Momo selbst, alles andere das Gespräch."""
+        wunsch = saetze.erkennen(text) if art == "text" and not neu else None
+        if wunsch == saetze.SPRACHE_AN:
+            self.einstellungen.vorlesen = "immer"
+            log.info("Einstellung: Vorlesen immer")
+            return self._gemerkt(text, Antwort(SPRACHE_AN))
+        if wunsch == saetze.SPRACHE_AUS:
+            self.einstellungen.vorlesen = "nie"
+            log.info("Einstellung: Vorlesen nie")
+            return self._gemerkt(text, Antwort(SPRACHE_AUS))
+        if wunsch == saetze.NOCHMAL:
+            brief = self.einstellungen.letzter_brief()
+            if brief is None:
+                return self._gemerkt(text, Antwort(KEIN_BRIEF))
+            # Nochmal vorlesen heißt: wirklich vorlesen, auch wenn sonst nur Text eingestellt ist
+            return self._gemerkt(text, Antwort(brief.text, sprechtext=brief.sprechtext, immer_vorlesen=True))
+        return self.gespraech.antworten(art, text, neu)
+
+    def _gemerkt(self, frage: str, antwort: Antwort) -> Antwort:
+        self.gespraech.merken("nutzer", frage)
+        self.gespraech.merken("momo", antwort.text.split("\n")[0])
+        return antwort
 
     def _brief_aufnehmen(self, s) -> Antwort:
         endung = endung_fuer(getattr(s, "file_mime", None), getattr(s, "file_name", None))
@@ -130,6 +179,7 @@ class Bote:
                          ergebnis["verdacht_manipulation"], len(ergebnis["fristen"]))
                 antwort = erklaerung(ergebnis, seiten)
                 self.gespraech.merken("momo", antwort.text)
+                self.einstellungen.brief_merken(antwort)
                 self._senden(chat, antwort)
             except Exception:
                 log.exception("Brief lesen fehlgeschlagen (%s)", vorgang)
@@ -138,7 +188,7 @@ class Bote:
     # --- Senden ---
     def _senden(self, chat, antwort: Antwort) -> None:
         datei = None
-        if antwort.vorlesen and self.konfig.vorlesen == "immer":
+        if antwort.vorlesen and (antwort.immer_vorlesen or self.einstellungen.vorlesen == "immer"):
             datei = self.stimme.sprechen(antwort.zum_vorlesen, self.tmp)
         if datei:
             chat.send_message(text=antwort.text, file=str(datei), viewtype=ViewType.VOICE)

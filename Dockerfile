@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 ARG STIMME=de_DE-thorsten-medium
 RUN python -m piper.download_voices --data-dir /app/stimmen ${STIMME}
 
+# Zuhören: Whisper-Modell lokal (small ≈ 500 MB, Wahl über Build-Argument und MOMO_WHISPER)
+ARG WHISPER=small
+RUN python -c "from faster_whisper import download_model; download_model('${WHISPER}', output_dir='/app/whisper/${WHISPER}')"
+
 # Optional: Claude Code für den Anschluss claude-abo (zum Testen mit einem Claude-Abo)
 ARG MIT_CLAUDE=0
 RUN if [ "$MIT_CLAUDE" = "1" ]; then \

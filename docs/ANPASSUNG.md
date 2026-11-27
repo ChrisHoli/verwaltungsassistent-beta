@@ -78,7 +78,7 @@ DSGVO: Der Anbieter allein reicht nicht. Die Person muss wissen und einverstande
 
 - **Antworten kurz und als Sprachnachricht** (Einstellung „immer vorlesen“), Text immer dazu.
 - **Jeder Brief bekommt drei Sätze in Leichter Sprache:** Was ist das? Was musst du tun? Bis wann?
-- **Sprechen statt tippen:** Sprachnachrichten werden verstanden; keine Befehle nötig, normale Sätze reichen („Was wollte das Jobcenter?“).
+- **Sprechen statt tippen:** Sprachnachrichten werden verstanden (Whisper small, lokal, mit einer Liste von Amtswörtern); keine Befehle nötig, normale Sätze reichen („Was wollte das Jobcenter?“). Im Text steht oben, was Momo verstanden hat, damit ein Hörfehler auffällt. Selbst erledigt (`momo/saetze.py`): „Lies mir den Brief noch mal vor“, „Antworte immer mit Sprache“, „Antworte nur mit Text“ (gemerkt in `daten/einstellungen.json`).
 - **Behördenwörter erklärt** aus fester Liste (`momo/woerter.py`: Anhörung, Erstattung, Leistungsminderung, Mitwirkungspflicht, Widerspruch, Bescheid …), höchstens zwei je Brief; Fragen wie „Was heißt Anhörung?“ beantwortet Momo direkt aus der Liste. Die Liste ist ein Entwurf und soll von einer Beratungsstelle geprüft werden.
 - **Aktenzeichen und Zahlen** beim Vorlesen einzeln und langsam („neun, acht, sieben, De …“), Beträge als „1087 Euro und 40 Cent“.
 - **„Bis wann?“ prüft Momo selbst:** Steht im Brief „bis zum …“ oder „spätestens …“ und die KI hat das Datum nicht sicher, sagt Momo „nicht sicher“ statt „keine Frist“. Fristen wie „innerhalb von 14 Tagen“ zitiert er wörtlich, rechnet aber nicht selbst.

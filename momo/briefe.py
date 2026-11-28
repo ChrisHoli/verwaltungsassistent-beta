@@ -1,7 +1,8 @@
 """Briefe aufnehmen: Fotos und PDFs aus dem Chat als Vorgang in der Ablage speichern.
 
-Aufbau je Vorgang: Briefe/<JJJJ-MM-TT_HHMM>/original/seite-01.jpg … (später text/, json/, antwortbriefe/).
-Seiten, die kurz hintereinander kommen, gehören zum selben Brief.
+Neue Briefe landen in Briefe/Eingang/<JJJJ-MM-TT_HHMMSS>/original/seite-01.jpg …
+Nach dem Lesen sortiert Momo sie ein: Briefe/<Bereich>/<Absender>/<JJJJ-MM-TT> <Worum es geht>/
+mit original/, text/, json/ und später antwortbriefe/. Seiten, die kurz hintereinander kommen, gehören zusammen.
 """
 
 import time
@@ -47,13 +48,30 @@ class Briefablage:
     def aufnehmen(self, daten: bytes, endung: str) -> Aufnahme:
         jetzt = self.uhr()
         if self._vorgang is None or jetzt - self._zuletzt > ZUSAMMEN_SEKUNDEN:
-            self._vorgang = "Briefe/" + datetime.fromtimestamp(jetzt, ZEITZONE).strftime("%Y-%m-%d_%H%M%S")
+            self._vorgang = "Briefe/Eingang/" + datetime.fromtimestamp(jetzt, ZEITZONE).strftime("%Y-%m-%d_%H%M%S")
             self._seite = 0
         seite = self._seite + 1
         pfad = f"{self._vorgang}/original/seite-{seite:02d}.{endung}"
         self.ablage.schreiben(pfad, daten)
         self._seite, self._zuletzt = seite, jetzt
         return Aufnahme(self._vorgang, seite, pfad)
+
+    def einsortieren(self, vorgang: str, bereich: str, absender: str | None, datum: str | None,
+                     betreff: str | None) -> str:
+        """Verschiebt den Vorgang aus dem Eingang an seinen Platz und gibt den neuen Pfad zurück."""
+        from .aufnahme import ordnername
+
+        tag = datum or vorgang.rsplit("/", 1)[-1][:10]
+        ordner = ordnername(absender) or "Unbekannt"
+        name = f"{tag} {ordnername(betreff) or 'Brief'}"
+        basis = f"Briefe/{ordnername(bereich) or 'Sonstiges'}/{ordner}/{name}"
+        ziel, n = basis, 2
+        while self.ablage.liste(ziel):
+            ziel, n = f"{basis} ({n})", n + 1
+        self.ablage.verschieben(vorgang, ziel)
+        if self._vorgang == vorgang:  # weitere Seiten kämen sonst in den alten Ordner
+            self._vorgang = None
+        return ziel
 
     def originale(self, vorgang: str) -> list[tuple[bytes, str]]:
         """(Daten, Endung) aller Seiten eines Vorgangs, in Reihenfolge."""

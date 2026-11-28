@@ -18,6 +18,10 @@ class Ablage(ABC):
     @abstractmethod
     def liste(self, ordner: str = "") -> list[str]: ...
 
+    @abstractmethod
+    def verschieben(self, ordner: str, ziel: str) -> None:
+        """Ganzen Ordner umbenennen oder verschieben (zum Einsortieren)."""
+
     def pruefen(self) -> None:
         """Wirft AblageFehler, wenn der Speicherort nicht erreichbar ist."""
 
@@ -48,6 +52,13 @@ class OrdnerAblage(Ablage):
 
     def lesen(self, pfad: str) -> bytes:
         return self._ziel(pfad).read_bytes()
+
+    def verschieben(self, ordner: str, ziel: str) -> None:
+        neu = self._ziel(ziel)
+        if neu.exists():
+            raise AblageFehler(f"Ziel gibt es schon: {ziel}")
+        neu.parent.mkdir(parents=True, exist_ok=True)
+        self._ziel(ordner).rename(neu)
 
     def liste(self, ordner: str = "") -> list[str]:
         basis = self._ziel(ordner) if ordner else self.wurzel

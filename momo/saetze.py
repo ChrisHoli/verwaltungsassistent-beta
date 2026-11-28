@@ -10,6 +10,7 @@ SPRACHE_AN = "sprache_an"
 SPRACHE_AUS = "sprache_aus"
 WOCHE = "woche"
 FRISTEN = "fristen"
+APP = "app"
 
 _AUS = [
     r"\b(nur|bloß|lieber)\s+(mit\s+|per\s+|als\s+)?(text|schrift|geschrieben|schreiben)",
@@ -41,11 +42,18 @@ _FRISTEN = [
 ]
 
 
+_APP = [
+    r"\b(übersicht|uebersicht|mini-?app|app)\b",
+    r"\b(zeig|zeige)\s+(mir\s+)?(meine|alle)\s+(briefe|dokumente|papiere|sachen|ordner)\b",
+    r"\bwo\s+(sind|finde\s+ich)\s+meine\s+(briefe|dokumente|papiere)\b",
+]
+
+
 def erkennen(text: str) -> str | None:
     t = " ".join((text or "").lower().split())
     if len(t) > 160:  # lange Nachrichten sind Fragen, keine Wünsche
         return None
-    for muster, wunsch in ((_AUS, SPRACHE_AUS), (_AN, SPRACHE_AN), (_WOCHE, WOCHE), (_FRISTEN, FRISTEN),
+    for muster, wunsch in ((_AUS, SPRACHE_AUS), (_AN, SPRACHE_AN), (_WOCHE, WOCHE), (_FRISTEN, FRISTEN), (_APP, APP),
                            (_NOCHMAL, NOCHMAL)):
         if any(re.search(m, t) for m in muster):
             return wunsch

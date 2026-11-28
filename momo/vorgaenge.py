@@ -101,11 +101,18 @@ class Vorgaenge:
             "dokumenttyp": wert("dokumenttyp"), "was_ist_das": e.get("was_ist_das"),
             "was_tun": wert("handlungsbedarf"), "fristen": fristen, "fragen": {},
             "verdacht": bool(e.get("verdacht_manipulation")),
+            "kategorie": e.get("kategorie") or "Sonstiges", "betreff": e.get("betreff_kurz"),
+            "datum": wert("datum"), "pruefen": bool(e.get("pruefen")),
         }
         with self._sperre:
             self.daten["briefe"].append(brief)
             self._sichern()
             return len(self.daten["briefe"]) - 1
+
+    def erklaerung_merken(self, nummer: int, text: str, sprechtext: str | None) -> None:
+        with self._sperre:
+            self.daten["briefe"][nummer]["erklaerung"] = {"text": text, "sprechtext": sprechtext}
+            self._sichern()
 
     def frueher_zur_akte(self, nummer: int) -> list[dict]:
         """Frühere Briefe mit derselben Nummer (gleicher Vorgang)."""

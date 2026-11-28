@@ -1,6 +1,6 @@
 # Momo (Verwaltungsassistent beta)
 
-Delta-Chat-Bot für Menschen mit Leseschwierigkeiten (erster Nutzer: ein Freund mit Legasthenie, Behördenpost). Brief fotografieren oder Sprachnachricht schicken → verstehen, vorlesen, Fristen, Antwortbrief. Ein Docker-Container je Person; KI und Speicherort wählbar.
+Delta-Chat-Bot für Menschen mit Leseschwierigkeiten (erster Nutzer: ein Freund mit Legasthenie; Briefe und Dokumente aller Art, nicht nur Behördenpost). Brief fotografieren oder Sprachnachricht schicken → verstehen, vorlesen, Fristen, Antwortbrief. Ein Docker-Container je Person; KI und Speicherort wählbar.
 
 - Maßgeblicher Bauplan: `docs/ANPASSUNG.md` – geht dem Originalkonzept vor.
 - Originalkonzept: `docs/quelle/Verwaltungsassistent_beta_Technischer_Bauplan.md`

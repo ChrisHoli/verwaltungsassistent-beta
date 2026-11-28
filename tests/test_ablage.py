@@ -54,4 +54,22 @@ def test_briefablage_buendelt_seiten(tmp_path):
     assert (a1.seite, a2.seite, a3.seite) == (1, 2, 1)
     assert a2.pfad.endswith("/original/seite-02.jpg")
     assert (tmp_path / a3.pfad).read_bytes() == b"3"
-    assert a1.vorgang.startswith("Briefe/2027-01-15_")
+    assert a1.vorgang.startswith("Briefe/Eingang/2027-01-15_")
+
+
+def test_einsortieren(tmp_path):
+    from momo.aufnahme import kategorie, ordnername
+
+    b = Briefablage(OrdnerAblage(tmp_path))
+    a = b.aufnehmen(b"1", "jpg")
+    ziel = b.einsortieren(a.vorgang, "Gesundheit", "AOK Plus / Die Gesundheitskasse", "2026-11-20", "Rechnung: 2/26")
+    assert ziel == "Briefe/Gesundheit/AOK Plus Die Gesundheitskasse/2026-11-20 Rechnung 2 26"
+    assert (tmp_path / ziel / "original" / "seite-01.jpg").read_bytes() == b"1"
+    assert not (tmp_path / a.vorgang).exists()
+    a2 = b.aufnehmen(b"2", "jpg")  # neuer Vorgang, nicht in den einsortierten Ordner
+    assert a2.vorgang.startswith("Briefe/Eingang/")
+    zweit = b.einsortieren(a2.vorgang, "Gesundheit", "AOK Plus / Die Gesundheitskasse", "2026-11-20", "Rechnung: 2/26")
+    assert zweit.endswith("(2)")
+    assert kategorie("gesundheit") == "Gesundheit" and kategorie("Quatsch") == "Sonstiges"
+    assert kategorie({"wert": "Bank & Geld"}) == "Bank und Geld"
+    assert ordnername("../../etc") == "etc" and ordnername("") is None

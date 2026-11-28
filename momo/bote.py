@@ -11,13 +11,14 @@ import time
 from pathlib import Path
 
 from deltachat_rpc_client import Bot, DeltaChat, Rpc, events
-from deltachat_rpc_client.const import ViewType
+from deltachat_rpc_client.const import EventType, ViewType
 
 from .ablage import AblageFehler
 from . import saetze
 from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT, KEIN_BRIEF,
                         NICHT_VERSTANDEN, NOCH_NICHT, SPRACHE_AN, SPRACHE_AUS, Antwort)
 from . import antwortbrief as ab
+from . import miniapp
 from .einstellungen import Einstellungen
 from .woerter import frage_nach_wort
 from .vorgaenge import ZEITZONE, ERLEDIGT, ERLEDIGT_ZITAT, JA, NEIN, Vorgaenge, erinnerung_text, frage_text, ueberblick_text
@@ -63,6 +64,9 @@ class Bote:
         self.vorgaenge = Vorgaenge(konfig.daten)
         self.entwuerfe = ab.Entwuerfe(konfig.daten, konfig.absender)
         self._chat = None  # Chat der laufenden Nachricht, für Zwischenmeldungen und das PDF
+        self._konto = None
+        self.app_datei = konfig.daten / "app.json"
+        self._app_sperre = threading.Lock()
         self.gespraech = gespraech
         self.briefe = briefe
         self._lese_uhr: threading.Timer | None = None
@@ -136,6 +140,11 @@ class Bote:
                 antwort = self._antwortbrief(text, zitiert)
                 if antwort is not None:
                     return antwort
+        if wunsch == saetze.APP:
+            gesendet = self._app_schicken(self._chat)
+            return self._gemerkt(text, Antwort(
+                "Hier ist deine Übersicht. Tipp sie an. Dort siehst du deine Briefe nach Bereichen sortiert "
+                "und was bald wichtig ist." if gesendet else "Die Übersicht kann ich gerade nicht schicken."))
         if wunsch in (saetze.WOCHE, saetze.FRISTEN):
             tage = 7 if wunsch == saetze.WOCHE else None
             return self._gemerkt(text, Antwort(ueberblick_text(self.vorgaenge.kommend(tage), tage)))
@@ -177,6 +186,7 @@ class Bote:
         tag = datum_lesbar(f["datum"])
         if art == "erledigt":
             self.vorgaenge.setzen(frage, "erledigt")
+            self._app_auffrischen()
             log.info("Frist erledigt")
             return Antwort("Super, das hast du gut gemacht. Ich erinnere dich nicht mehr daran.")
         if art == "nein":
@@ -184,11 +194,13 @@ class Bote:
                 return Antwort(f"In Ordnung. Ich erinnere dich trotzdem noch einmal vor dem {tag}. "
                                "Wenn du es erledigt hast, sag: erledigt.")
             self.vorgaenge.setzen(frage, "abgelehnt")
+            self._app_auffrischen()
             log.info("Frist abgelehnt")
             return Antwort("In Ordnung. Daran erinnere ich dich nicht.")
         if f["status"] == "bestaetigt":
             return Antwort(f"Gut. Ich denke an den {tag}.")
         self.vorgaenge.setzen(frage, "bestaetigt")
+        self._app_auffrischen()
         self._uebersicht_ablegen()
         log.info("Frist bestätigt")
         if f["art"] == "wiedervorlage":
@@ -313,6 +325,89 @@ class Bote:
                                                "was drinstehen soll. Du kannst ganz normal sprechen."))
         return None
 
+    # --- Mini-App (V10) ---
+    def _app_lesen(self) -> dict:
+        import json
+
+        try:
+            return json.loads(self.app_datei.read_text())
+        except (FileNotFoundError, ValueError):
+            return {}
+
+    def _app_schreiben(self, d: dict) -> None:
+        import json
+
+        tmp = self.app_datei.with_suffix(".neu")
+        tmp.write_text(json.dumps(d))
+        tmp.replace(self.app_datei)
+
+    def _app_id(self) -> int | None:
+        return self._app_lesen().get("nachricht")
+
+    def _app_schicken(self, chat) -> bool:
+        if chat is None:
+            return False
+        try:
+            datei = miniapp.xdc_bauen(self.tmp / "momo.xdc")
+            nachricht = chat.send_message(file=str(datei))
+            self._app_schreiben({"nachricht": nachricht.id, "serial": 0})
+            nachricht.send_webxdc_status_update({"payload": miniapp.stand(self.vorgaenge)}, "")
+            log.info("Mini-App geschickt")
+            return True
+        except Exception:
+            log.exception("Mini-App nicht geschickt")
+            return False
+
+    def _app_auffrischen(self) -> None:
+        app = self._app_id()
+        if app is None or self._konto is None:
+            return
+        try:
+            self._konto.get_message_by_id(app).send_webxdc_status_update({"payload": miniapp.stand(self.vorgaenge)}, "")
+        except Exception as e:
+            log.warning("Mini-App nicht aufgefrischt: %s", str(e)[:150])
+
+    def _bei_app(self, ereignis) -> None:
+        """Bitten aus der Mini-App: vorlesen, erledigt, bestätigen, antworten."""
+        app = self._app_lesen()
+        if not app or ereignis.msg_id != app.get("nachricht"):
+            return
+        with self._app_sperre:
+            nachricht = self._konto.get_message_by_id(app["nachricht"])
+            updates = nachricht.get_webxdc_status_updates(app.get("serial", 0))
+            if not updates:
+                return
+            app["serial"] = max(u.get("serial", 0) for u in updates)
+            self._app_schreiben(app)
+        chat = nachricht.get_snapshot().chat
+        geaendert = False
+        for b in miniapp.bitten(updates):
+            briefe = self.vorgaenge.daten["briefe"]
+            if not 0 <= b["brief"] < len(briefe):
+                continue
+            brief = briefe[b["brief"]]
+            log.info("Bitte aus der Mini-App: %s", b["was"])
+            if b["was"] == "vorlesen":
+                e = brief.get("erklaerung") or {}
+                if e.get("text"):
+                    self._senden(chat, Antwort(e["text"], sprechtext=e.get("sprechtext"), immer_vorlesen=True))
+            elif b["was"] == "antworten":
+                if not brief.get("verdacht"):
+                    self.entwuerfe.warten("absender" if not self.entwuerfe.absender else "inhalt", b["brief"])
+                    self._senden(chat, Antwort(ab.ABSENDER_FRAGE if not self.entwuerfe.absender else
+                                               f"Gut. Ich schreibe eine Antwort an {brief.get('absender') or 'das Amt'}. "
+                                               "Sag mir einfach, was drinstehen soll."))
+            elif b["was"] in ("erledigt", "bestaetigen") and b["frist"] is not None \
+                    and 0 <= b["frist"] < len(brief["fristen"]):
+                from .vorgaenge import Frage
+
+                self.vorgaenge.setzen(Frage(b["brief"], b["frist"]),
+                                      "erledigt" if b["was"] == "erledigt" else "bestaetigt")
+                geaendert = True
+        if geaendert:
+            self._uebersicht_ablegen()
+            self._app_auffrischen()
+
     def _uebersicht_ablegen(self) -> None:
         """Fristen als einfache Textdatei in den Speicherort, damit auch Helfer sie sehen."""
         try:
@@ -368,9 +463,18 @@ class Bote:
                     self.briefe.ergebnis_ablegen(vorgang, seiten, None)
                     self._senden(chat, Antwort(FEHLER.get(e.art, FEHLER["sonstig"])))
                     return
-                self.briefe.ergebnis_ablegen(vorgang, seiten, ergebnis)
                 log.info("Brief gelesen %s: pruefen=%s, verdacht=%s, fristen=%s", vorgang, ergebnis["pruefen"],
                          ergebnis["verdacht_manipulation"], len(ergebnis["fristen"]))
+                bereich = "Zum Prüfen" if ergebnis["verdacht_manipulation"] else ergebnis["kategorie"]
+                try:
+                    vorgang = self.briefe.einsortieren(
+                        vorgang, bereich, (ergebnis.get("absender") or {}).get("wert"),
+                        (ergebnis.get("datum") or {}).get("wert"), ergebnis.get("betreff_kurz"))
+                    ergebnis["ablage"] = vorgang
+                    log.info("Brief einsortiert")  # Pfad nicht ins Log: er enthält Absender und Betreff
+                except AblageFehler as e:
+                    log.warning("Einsortieren fehlgeschlagen, bleibt im Eingang: %s", str(e)[:150])
+                self.briefe.ergebnis_ablegen(vorgang, seiten, ergebnis)
                 antwort = erklaerung(ergebnis, seiten)
                 nummer = self.vorgaenge.brief_eintragen(vorgang, ergebnis)
                 frueher = self.vorgaenge.frueher_zur_akte(nummer)
@@ -380,8 +484,15 @@ class Bote:
                     antwort = Antwort(antwort.text + "\n" + zusatz, sprechtext=antwort.zum_vorlesen + " " + zusatz)
                 self.gespraech.merken("momo", antwort.text)
                 self.einstellungen.brief_merken(antwort)
+                self.vorgaenge.erklaerung_merken(nummer, antwort.text, antwort.sprechtext)
                 self._senden(chat, antwort)
                 self._fristen_fragen(chat, nummer)
+                if self._app_id() is None:
+                    if self._app_schicken(chat):
+                        self._senden(chat, Antwort("Ich habe dir auch eine Übersicht geschickt. Tipp sie an. "
+                                                   "Dort findest du alle deine Briefe, nach Bereichen sortiert."))
+                else:
+                    self._app_auffrischen()
             except Exception:
                 log.exception("Brief lesen fehlgeschlagen (%s)", vorgang)
                 self._senden(chat, Antwort(FEHLER["sonstig"]))
@@ -470,8 +581,10 @@ class Bote:
         self._aufraeumen()
         with Rpc(accounts_dir=str(self.konfig.dc_ordner / "konten")) as rpc:
             konto = self._konto_einrichten(DeltaChat(rpc))
+            self._konto = konto
             haken = events.HookCollection()
             haken.on(events.NewMessage(is_info=False))(self._bei_nachricht)
+            haken.on(events.RawEvent(EventType.WEBXDC_STATUS_UPDATE))(self._bei_app)
             bot = Bot(konto, haken)
             halt = threading.Event()
             threading.Thread(target=self._erinnern_schleife, args=(konto, halt), daemon=True,

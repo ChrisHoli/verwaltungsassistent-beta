@@ -8,7 +8,7 @@ Stand: 27.11.2026 (vierte Fassung, V0 entschieden) · Quelle: `docs/quelle/Verwa
 
 Der Bot ist **ein eigenständiges Paket** (ein Docker-Container), das überall laufen kann: auf einem Server, einem Raspberry Pi oder einem Computer. Keine Verbindung zu anderen Diensten. **KI** und **Speicherort** wählt, wer den Bot einrichtet.
 
-**Momo** ist der Name des Bots. Erster Nutzer: ein Freund mit Legasthenie, Thema **Post vom Jobcenter und anderen Behörden**. Danach Vorlage für weitere Menschen: **ein Bot je Person**.
+**Momo** ist der Name des Bots. Erster Nutzer: ein Freund mit Legasthenie. **Thema sind Briefe und Dokumente aller Art** (Ämter, Krankenkasse, Ärzte, Versicherungen, Bank, Vermieter, Arbeit, Rechnungen, Verträge …), nicht nur das Jobcenter: Momo liest, erklärt, **sortiert und legt gut ab** und wird ein richtig guter Assistent für Papierkram (Richtung bestätigt 28.11.2026). Danach Vorlage für weitere Menschen: **ein Bot je Person**.
 
 Vorher geprüft und verworfen: Web-App mit Server, eigene Flutter-App (siehe V14).
 
@@ -74,7 +74,7 @@ DSGVO: Der Anbieter allein reicht nicht. Die Person muss wissen und einverstande
 
 Über **rclone** (eine Schnittstelle für alles): Google Drive, **iCloud Drive**, Nextcloud/WebDAV, OneDrive, Dropbox oder ein einfacher Ordner. Daten als lesbare Dateien (je Vorgang ein Ordner: Originale, Text, JSON, Antwortbriefe). Ohne Momo bleiben sie nutzbar; am Computer sieht man sie im jeweiligen Cloud-Ordner.
 
-## Legasthenie und Behördenpost
+## Legasthenie und Papierkram
 
 - **Antworten kurz und als Sprachnachricht** (Einstellung „immer vorlesen“), Text immer dazu.
 - **Jeder Brief bekommt drei Sätze in Leichter Sprache:** Was ist das? Was musst du tun? Bis wann?
@@ -92,6 +92,14 @@ DSGVO: Der Anbieter allein reicht nicht. Die Person muss wissen und einverstande
 - **Betreiber:** `docker compose up` mit einer `.env` (KI-Schlüssel, Speicher). Beim ersten Start zeigt Momo den Einladungs-QR. Wer ihn zuerst verschlüsselt nutzt, wird Besitzer; danach ist Momo für alle anderen stumm. Zurücksetzen über eine Datei im Datenordner.
 - **Wo läuft der Bot?** Für den Probelauf: auf holiwork-alpha in einem **eigenen Container ohne Zugriff auf die anderen Dienste dort**; Nextcloud nur über den eigenen Benutzer `momo`. Später auch auf einem Raspberry Pi bei der Person zu Hause.
 - Ein Bot je Person: getrennte Daten, getrennter KI-Schlüssel, leicht übergebbar.
+
+## Sortieren und Ablegen (seit 28.11.2026)
+
+Jedes Dokument bekommt beim Lesen einen **Bereich** (Amt und Behörde, Gesundheit, Versicherung, Bank und Geld, Wohnen, Arbeit, Rechnungen und Verträge, Steuern, Familie und Schule, Sonstiges) und einen kurzen Betreff. Neue Fotos landen in `Briefe/Eingang/`, nach dem Lesen verschiebt Momo sie nach `Briefe/<Bereich>/<Absender>/<Datum> <Betreff>/` (Originale, Text, JSON, Antwortbriefe). Verdächtige Briefe kommen nach `Briefe/Zum Prüfen/`. Momo sagt dazu, wo er das Dokument abgelegt hat.
+
+## Mini-App im Chat (V10)
+
+`momo/app/` wird als webxdc-App (`momo.xdc`) in den Chat geschickt, beim ersten gelesenen Brief von selbst und auf „Zeig mir meine Briefe“ / „Übersicht“. Sie zeigt „Bald wichtig“ (Fristen der nächsten 30 Tage als große Kacheln) und „Meine Briefe“ nach Bereichen, je Brief: Was ist das? Was musst du tun? Abgelegt unter. Knöpfe: Vorlesen (Momo schickt die Sprachnachricht), Erinnern, Erledigt, Antworten (startet V9). Drei Schriften (Atkinson Hyperlegible, Lexend, OpenDyslexic, OFL, liegen bei) und Schriftgröße wählbar. Die App lädt nichts aus dem Netz; Stand und Bitten laufen als webxdc-Aktualisierungen im verschlüsselten Chat.
 
 ## Kosten
 

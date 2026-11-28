@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 BEGRUESSUNG = (
     "Hallo! Ich bin {name}.\n"
-    "Ich helfe dir mit Briefen von Ämtern.\n"
-    "Schick mir ein Foto von einem Brief.\n"
+    "Ich helfe dir mit Briefen und Papieren aller Art.\n"
+    "Schick mir ein Foto von einem Brief oder Dokument. Ich lese es und lege es ordentlich ab.\n"
     "Dann sage ich dir: Was ist das? Was musst du tun? Bis wann?\n"
     "Du kannst mit mir sprechen: Schick mir einfach eine Sprachnachricht.\n"
     "Zum Beispiel: Was heißt Anhörung? Oder: Lies mir den Brief noch mal vor."

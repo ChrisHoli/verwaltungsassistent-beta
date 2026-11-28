@@ -80,3 +80,11 @@ def test_momo_prueft_fristen_selbst():
     assert "„innerhalb von 14 Tagen" in erklaerung(pruefen_und_kuerzen({}, kk), kk).text
     assert brief_ist_schlecht(BRIEFE[6]["seiten"])
     assert not any(brief_ist_schlecht(b["seiten"]) for i, b in enumerate(BRIEFE) if i != 6)
+
+
+def test_abgelegt_unter():
+    e = pruefen_und_kuerzen(GUT, [SEITE])
+    e["ablage"] = "Briefe/Amt und Behörde/Jobcenter Musterstadt/2026-11-12 Einladung Gespräch"
+    a = erklaerung(e, [SEITE])
+    assert "Abgelegt unter: Amt und Behörde › Jobcenter Musterstadt" in a.text
+    assert "abgelegt bei Amt und Behörde, im Ordner Jobcenter Musterstadt" in a.sprechtext

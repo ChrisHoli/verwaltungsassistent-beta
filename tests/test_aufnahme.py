@@ -35,6 +35,8 @@ GUT = {
     "betraege": [],
     "verdacht_manipulation": False,
     "was_ist_das": "Das Jobcenter lädt dich zu einem Gespräch ein.",
+    "kategorie": "Amt und Behörde",
+    "betreff_kurz": "Einladung Gespräch",
 }
 
 

@@ -12,8 +12,9 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # Wörter, die Whisper sonst verhört („Jobkenner“). Als Liste wirkt das besser als ein ganzer Satz (gemessen 27.11.2026).
-AMTSWOERTER = ("Jobcenter, Kontoauszüge, Bescheid, Anhörung, Widerspruch, Frist, Aktenzeichen, "
-               "Weiterbewilligungsantrag, Mitwirkung, Nebenkostenabrechnung, Bürgergeld")
+AMTSWOERTER = ("Jobcenter, Krankenkasse, Versicherung, Rechnung, Mahnung, Vermieter, Nebenkostenabrechnung, "
+               "Kontoauszüge, Bescheid, Anhörung, Widerspruch, Frist, Aktenzeichen, Vertragsnummer, Kündigung, "
+               "Weiterbewilligungsantrag, Mitwirkung, Bürgergeld, Lastschrift, Überweisung")
 HOECHSTENS_SEKUNDEN = 180  # längere Nachrichten werden nur bis hier umgeschrieben
 
 

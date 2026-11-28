@@ -123,6 +123,12 @@ def erklaerung(e: dict, seiten: list[str]) -> Antwort:
         mehr.append(wort_erklaert(wort, erklaerung_))
         mehr_sprechen.append(wort_erklaert(wort, erklaerung_))
 
+    if e.get("ablage"):
+        teile = e["ablage"].split("/")[1:3]  # Bereich, Absender
+        mehr.append("Abgelegt unter: " + " › ".join(teile))
+        mehr_sprechen.append(f"Ich habe ihn abgelegt bei {teile[0]}" + (f", im Ordner {teile[1]}." if len(teile) > 1
+                                                                          else "."))
+
     hinweise = []
     if e.get("verdacht_manipulation"):
         hinweise.append("Im Brief steht etwas Ungewöhnliches. Zeig ihn bitte einem Menschen, dem du vertraust.")

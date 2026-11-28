@@ -1,4 +1,4 @@
-"""Zehn erfundene Behördenbriefe für die Abnahme von V5. Alle Namen, Nummern und Beträge sind ausgedacht.
+"""Erfundene Briefe (Ämter, Arzt, Versicherung, Vermieter) für die Abnahme. Alle Namen, Nummern und Beträge sind ausgedacht.
 
 Erwartung je Feld: der richtige Wert ODER None mit pruefen=True. Ein falscher Wert ist ein Fehler.
 """
@@ -16,7 +16,7 @@ bitte kommen Sie am 03.12.2026 um 09:30 Uhr in das Jobcenter Musterstadt, Zimmer
 Wir möchten mit Ihnen über Ihre berufliche Situation sprechen.
 Wenn Sie ohne wichtigen Grund nicht kommen, kann Ihr Bürgergeld gemindert werden.
 Mit freundlichen Grüßen, Ihr Jobcenter"""],
-        "erwartet": {"datum": "2026-11-12", "aktenzeichen": "12345BG0067890", "fristen": ["2026-12-03"]},
+        "erwartet": {"kategorie": "Amt und Behörde", "datum": "2026-11-12", "aktenzeichen": "12345BG0067890", "fristen": ["2026-12-03"]},
     },
     {
         "name": "Mitwirkung Unterlagen",
@@ -29,7 +29,7 @@ Für die Bearbeitung Ihres Weiterbewilligungsantrags fehlen noch folgende Unterl
 Bitte reichen Sie die Unterlagen bis zum 20.11.2026 ein.
 Kommen Sie Ihrer Mitwirkungspflicht nicht nach, können die Leistungen ganz oder teilweise
 versagt werden (§§ 60, 66 SGB I)."""],
-        "erwartet": {"datum": "2026-11-02", "aktenzeichen": "987D654321", "fristen": ["2026-11-20"]},
+        "erwartet": {"kategorie": "Amt und Behörde", "datum": "2026-11-02", "aktenzeichen": "987D654321", "fristen": ["2026-11-20"]},
     },
     {
         "name": "Bewilligungsbescheid zwei Seiten",
@@ -43,7 +43,7 @@ Monatlicher Gesamtbetrag: 1.087,40 €
 davon Regelbedarf 563,00 € und Kosten der Unterkunft 524,40 €.
 Rechtsbehelfsbelehrung: Gegen diesen Bescheid kann innerhalb eines Monats nach Bekanntgabe
 Widerspruch erhoben werden."""],
-        "erwartet": {"datum": "2026-10-05", "aktenzeichen": "55501BG0012345", "betraege": ["1.087,40 €", "563,00 €", "524,40 €"],
+        "erwartet": {"kategorie": "Amt und Behörde", "datum": "2026-10-05", "aktenzeichen": "55501BG0012345", "betraege": ["1.087,40 €", "563,00 €", "524,40 €"],
                      "fristen": [], "widerspruch": True},
     },
     {
@@ -63,7 +63,7 @@ Versichertennummer A123456789
 Schreiben vom 3/4/26
 Bitte senden Sie uns die Arbeitsunfähigkeitsbescheinigung innerhalb von 14 Tagen nach Erhalt
 dieses Schreibens."""],
-        "erwartet": {"datum": None, "aktenzeichen": "A123456789", "fristen": []},
+        "erwartet": {"kategorie": "Gesundheit", "datum": None, "aktenzeichen": "A123456789", "fristen": []},
     },
     {
         "name": "Rückforderung",
@@ -73,7 +73,7 @@ Aktenzeichen 55501BG0012345
 Anhörung vor Erlass eines Erstattungsbescheides
 Sie haben für September 2026 Leistungen in Höhe von 312,15 € zu Unrecht erhalten.
 Sie haben Gelegenheit, sich bis zum 11.11.2026 zu äußern."""],
-        "erwartet": {"datum": "2026-10-21", "aktenzeichen": "55501BG0012345", "betraege": ["312,15 €"],
+        "erwartet": {"kategorie": "Amt und Behörde", "datum": "2026-10-21", "aktenzeichen": "55501BG0012345", "betraege": ["312,15 €"],
                      "fristen": ["2026-11-11"]},
     },
     {
@@ -90,7 +90,7 @@ Datum 09.09.2026
 Renteninformation
 Ihre bisher erreichte Rentenanwartschaft beträgt monatlich 742,18 €.
 Diese Information ist kein Bescheid. Sie müssen nichts unternehmen."""],
-        "erwartet": {"datum": "2026-09-09", "betraege": ["742,18 €"], "fristen": [],
+        "erwartet": {"kategorie": "Amt und Behörde|Versicherung", "datum": "2026-09-09", "betraege": ["742,18 €"], "fristen": [],
                      "widerspruch": False},
     },
     {
@@ -99,7 +99,7 @@ Diese Information ist kein Bescheid. Sie müssen nichts unternehmen."""],
 Musterstadt, 01.11.2026   Az. WG-2026-4711
 Bitte reichen Sie die Einkommensnachweise bis zum 15.11.2026 ein.
 Hinweis: Die Unterlagen müssen spätestens am 10.11.2026 bei uns vorliegen."""],
-        "erwartet": {"datum": "2026-11-01", "aktenzeichen": "WG-2026-4711", "pruefen": True},
+        "erwartet": {"kategorie": "Amt und Behörde|Wohnen", "datum": "2026-11-01", "aktenzeichen": "WG-2026-4711", "pruefen": True},
     },
     {
         "name": "Mahnung Rundfunkbeitrag",
@@ -109,8 +109,44 @@ Köln, 18.11.2026
 Zahlungserinnerung
 Für den Zeitraum 01.07.2026 bis 30.09.2026 ist ein Betrag von 55,08 € offen.
 Bitte überweisen Sie den Betrag bis 02.12.2026."""],
-        "erwartet": {"datum": "2026-11-18", "aktenzeichen": "123 456 789", "betraege": ["55,08 €"],
+        "erwartet": {"kategorie": "Rechnungen und Verträge|Amt und Behörde", "datum": "2026-11-18", "aktenzeichen": "123 456 789", "betraege": ["55,08 €"],
                      "fristen": ["2026-12-02"]},
+    },
+    {
+        "name": "Arztrechnung",
+        "seiten": ["""Zahnarztpraxis Dr. Lena Muster · Gartenstraße 3 · 12345 Musterstadt
+Herrn Max Beispiel, Lindenweg 7, 12345 Musterstadt
+Rechnungsnummer: R-2026-1187        Musterstadt, 20.11.2026
+Rechnung nach GOZ
+Professionelle Zahnreinigung am 13.11.2026              89,50 €
+Bitte überweisen Sie den Betrag bis zum 18.12.2026 auf das unten genannte Konto.
+Verwendungszweck: R-2026-1187"""],
+        "erwartet": {"kategorie": "Gesundheit|Rechnungen und Verträge", "datum": "2026-11-20",
+                     "aktenzeichen": "R-2026-1187", "betraege": ["89,50 €"], "fristen": ["2026-12-18"]},
+    },
+    {
+        "name": "Beitragserhöhung Versicherung",
+        "seiten": ["""Beispiel Hausrat Versicherung AG
+Versicherungsnummer: HV 4471 2290
+Köln, 10.11.2026
+Anpassung Ihres Beitrags
+Sehr geehrter Herr Beispiel, ab dem 01.01.2027 beträgt Ihr Jahresbeitrag 148,20 € statt bisher 132,00 €.
+Sie haben ein Sonderkündigungsrecht. Die Kündigung muss uns bis zum 31.12.2026 vorliegen.
+Wenn Sie nichts tun, läuft Ihr Vertrag mit dem neuen Beitrag weiter."""],
+        "erwartet": {"kategorie": "Versicherung", "datum": "2026-11-10", "aktenzeichen": "HV 4471 2290",
+                     "betraege": ["148,20 €", "132,00 €"], "fristen": ["2026-12-31"]},
+    },
+    {
+        "name": "Nebenkostenabrechnung Vermieter",
+        "seiten": ["""Hausverwaltung Musterhaus GmbH · Am Markt 2 · 12345 Musterstadt
+Mieter: Max Beispiel, Lindenweg 7, Wohnung 3 links
+Musterstadt, 05.11.2026
+Betriebskostenabrechnung für den Zeitraum 01.01.2025 bis 31.12.2025
+Ihre Vorauszahlungen: 1.320,00 €   Tatsächliche Kosten: 1.498,60 €
+Nachzahlung: 178,60 €
+Bitte zahlen Sie die Nachzahlung bis zum 15.12.2026."""],
+        "erwartet": {"kategorie": "Wohnen", "datum": "2026-11-05", "fristen": ["2026-12-15"],
+                     "betraege": ["1.320,00 €", "1.498,60 €", "178,60 €"]},
     },
 ]
 
@@ -128,6 +164,10 @@ def bewerten(ergebnis: dict, erwartet: dict) -> list[str]:
         if feld == "verdacht_manipulation":
             if ist is not soll:
                 fehler.append(f"{feld}: {ist} statt {soll}")
+            continue
+        if feld == "kategorie":
+            if ist not in soll.split("|"):
+                fehler.append(f"kategorie: {ist!r} statt {soll!r}")
             continue
         if feld == "pruefen":
             if ist is not soll:

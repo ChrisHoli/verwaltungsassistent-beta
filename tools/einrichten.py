@@ -7,9 +7,9 @@ Passwörter und Schlüssel werden nie angezeigt.
 """
 
 import argparse
-import getpass
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -30,12 +30,16 @@ KIS = [
     ("befehl", "Eigenes Programm", "Text rein über stdin, Antwort über stdout.", ""),
     ("claude-abo", "Claude-Abo", "nur zum Ausprobieren, nicht für den Dauerbetrieb.",
      "Token auf einem Rechner mit Claude Code erzeugen: claude setup-token"),
+    ("mistral-vibe", "Mistral Vibe", "Mistral über ein Le-Chat-Abo (Pro/Team), EU.",
+     "Schlüssel aus Mistral Studio: console.mistral.ai → Code → Vibe CLI (zählt aufs Abo)"),
     ("keine", "Keine KI", "Momo legt ab und liest vor, erklärt aber keine Briefe.", ""),
 ]
 # Wo der Schlüssel steht (wie in .env.example); alle anderen nutzen MOMO_KI_SCHLUESSEL
 SCHLUESSEL_FELD = {"mistral": "MISTRAL_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY",
-                   "gemini": "GEMINI_API_KEY", "claude-abo": "CLAUDE_CODE_OAUTH_TOKEN"}
-STANDARD_MODELL = {"mistral": "mistral-medium-latest", "anthropic": "claude-opus-5-5", "claude-abo": "sonnet"}
+                   "gemini": "GEMINI_API_KEY", "claude-abo": "CLAUDE_CODE_OAUTH_TOKEN",
+                   "mistral-vibe": "MOMO_VIBE_SCHLUESSEL"}
+STANDARD_MODELL = {"mistral": "mistral-medium-latest", "anthropic": "claude-opus-5-5", "claude-abo": "sonnet",
+                  "mistral-vibe": "mistral-medium-3.5"}
 
 # Bekannte Postfächer: Domain → (IMAP, SMTP, Hinweis zum App-Passwort)
 POSTFAECHER = {
@@ -71,7 +75,7 @@ WHATSAPP = ("WhatsApp geht noch nicht: Dafür verlangt Meta ein Firmenkonto, ein
 
 # Diese Einstellungen gehören zu Momo und werden übernommen; alles andere aus der Umgebung nicht
 EIGENE = re.compile(r"^(MOMO_|COMPOSE_PROFILES$|RCLONE_CONFIG_|MISTRAL_|OPENAI_API_KEY$|GEMINI_API_KEY$|ANTHROPIC_API_KEY$|"
-                    r"OPENROUTER_API_KEY$|GROQ_API_KEY$|CLAUDE_CODE_OAUTH_TOKEN$|MIT_CLAUDE$)")
+                    r"OPENROUTER_API_KEY$|GROQ_API_KEY$|CLAUDE_CODE_OAUTH_TOKEN$|MIT_CLAUDE$|MIT_VIBE$)")
 GEHEIM = re.compile(r"(PASSWORT|PASS|KEY|SCHLUESSEL|TOKEN)$")
 NICHT_UEBERNEHMEN = {"MOMO_DATEN", "MOMO_STIMME"}  # aus dem Abbild, nicht aus der .env
 
@@ -88,6 +92,9 @@ def verstaendlich(e: Exception) -> str:
     if klein.startswith("getme:"):
         satz = ("Der Zugangsschlüssel wird nicht angenommen. Bitte genau so kopieren, wie BotFather ihn geschickt hat."
                 if ("401" in klein or "404" in klein) else "Telegram ist gerade nicht erreichbar.")
+    elif "402" in klein or "billing" in klein or "subscription" in klein:
+        satz = ("Der Schlüssel stimmt, aber im Konto ist noch kein Tarif für die Schnittstelle aktiv. "
+                "Bei Mistral: console.mistral.ai → Admin → Billing einen Plan wählen.")
     elif art == "anmeldung" or "invalid api key" in klein:
         satz = "Der Schlüssel wird nicht angenommen. Ist er vollständig kopiert?"
     elif art == "limit":
@@ -122,11 +129,12 @@ def _wert(v: str) -> str:
 ABSCHNITTE = [
     ("Messenger", ["MOMO_MESSENGER", "MOMO_CHATMAIL_QR", "MOMO_TELEGRAM_TOKEN", "MOMO_SIGNAL_NUMMER", "MOMO_SIGNAL_API",
                    "MOMO_BESITZER_ADRESSEN", "COMPOSE_PROFILES"]),
-    ("Momo", ["MOMO_NAME", "MOMO_BETREIBER", "MOMO_VORLESEN", "MOMO_WHISPER", "MOMO_AUFHEBEN_TAGE", "MOMO_ABSENDER"]),
+    ("Momo", ["MOMO_NAME", "MOMO_BETREIBER", "MOMO_VORLESEN", "MOMO_SPRECHTEMPO", "MOMO_WHISPER", "MOMO_AUFHEBEN_TAGE", "MOMO_ABSENDER"]),
     ("KI (nur Text geht an die KI, nie Fotos)", ["MOMO_KI", "MOMO_KI_MODELL", "MOMO_KI_ADRESSE",
                                                  "MOMO_KI_SCHLUESSEL", "MOMO_KI_BEFEHL", "MOMO_KI_AUFWAND",
                                                  "MISTRAL_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
-                                                 "GEMINI_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "MIT_CLAUDE"]),
+                                                 "GEMINI_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "MIT_CLAUDE",
+                                                 "MOMO_VIBE_SCHLUESSEL", "MIT_VIBE"]),
     ("Speicherort", ["MOMO_ABLAGE", "MOMO_ABLAGE_ZIEL"]),
     ("E-Mail (Entwürfe ins Postfach; Abschicken nur nach Bestätigung, wenn MOMO_MAIL_SENDEN=ja)",
      ["MOMO_MAIL_ADRESSE", "MOMO_MAIL_PASSWORT", "MOMO_MAIL_IMAP", "MOMO_MAIL_SMTP", "MOMO_MAIL_SENDEN"]),
@@ -190,6 +198,11 @@ def ki_pruefen(werte: dict) -> str:
     ki = anbieter_waehlen(werte.get("MOMO_KI", "keine"), {**os.environ, **werte})
     if ki.name == "keine":
         return "ohne KI"
+    programm = {"claude-abo": "claude", "mistral-vibe": "vibe"}.get(ki.name)
+    if programm and not shutil.which(getattr(ki, "befehl", programm)):
+        if not (werte.get("CLAUDE_CODE_OAUTH_TOKEN") if programm == "claude" else werte.get("MOMO_VIBE_SCHLUESSEL")):
+            raise RuntimeError("der Schlüssel fehlt")
+        return f"{programm} wird gleich nach dem Speichern eingebaut und dann geprüft"
     antwort = ki.fragen("Antworte nur mit dem Wort OK.", [Nachricht("nutzer", "Test")])
     if not (antwort or "").strip():
         raise RuntimeError("leere Antwort")
@@ -226,10 +239,58 @@ def mail_pruefen(werte: dict) -> str:
 
 # ---------------------------------------------------------------- Fragen
 
+EINFUEGEN_HINWEIS = ("  Strg+V fügt hier nicht ein. Bitte mit der rechten Maustaste ins Fenster klicken "
+                     "(am Mac: Cmd+V), dann Enter.")
+
+
+def verdeckt_lesen(text: str, lies=None, schreib=None) -> str:
+    """Wie getpass, aber jedes Zeichen erscheint als •. Strg+V (in Windows-Fenstern ohne Wirkung) wird erklärt.
+
+    lies/schreib nur für Tests; sonst Terminal im Rohmodus.
+    """
+    if lies is None:
+        import termios
+        import tty
+
+        fd = sys.stdin.fileno()
+        alt = termios.tcgetattr(fd)
+        tty.setraw(fd)
+        try:
+            return verdeckt_lesen(text, lambda: os.read(fd, 1).decode(errors="ignore"),
+                                  lambda t: (sys.stdout.write(t), sys.stdout.flush()))
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, alt)
+    schreib(text)
+    zeichen: list[str] = []
+    while True:
+        z = lies()
+        if z in ("\r", "\n"):
+            schreib("\r\n")
+            return "".join(zeichen)
+        if z == "\x03":  # Strg+C
+            schreib("\r\n")
+            raise KeyboardInterrupt
+        if z in ("", "\x04"):  # Ende der Eingabe / Strg+D
+            schreib("\r\n")
+            raise EOFError
+        if z in ("\x7f", "\x08"):  # Rücktaste
+            if zeichen:
+                zeichen.pop()
+                schreib("\b \b")
+            continue
+        if z == "\x16":  # Strg+V
+            schreib("\r\n" + EINFUEGEN_HINWEIS + "\r\n" + text + "•" * len(zeichen))
+            continue
+        if z == "\x1b" or ord(z) < 32:  # andere Steuerzeichen und Pfeiltasten nicht mitnehmen
+            continue
+        zeichen.append(z)
+        schreib("•")
+
+
 class Frager:
     def __init__(self, eingabe=None, geheim=None, aus=print):
         self.eingabe = eingabe or (lambda text: input(text))
-        self.geheim_eingabe = geheim or (getpass.getpass if sys.stdin.isatty() else self.eingabe)
+        self.geheim_eingabe = geheim or (verdeckt_lesen if sys.stdin.isatty() else self.eingabe)
         self.aus = aus
 
     def _lesen(self, f, text):
@@ -250,9 +311,13 @@ class Frager:
         zusatz = " [gespeichert, Enter = behalten]" if vorhanden else ""
         while True:
             antwort = self._lesen(self.geheim_eingabe, f"{text}{zusatz}: ").strip()
-            if antwort or vorhanden:
-                return antwort or vorhanden
-            self.aus("  Bitte eingeben (wird nicht angezeigt).")
+            if antwort:
+                self.aus(f"  Angekommen: {len(antwort)} Zeichen, endet auf …{antwort[-4:]}")
+                return antwort
+            if vorhanden:
+                return vorhanden
+            self.aus("  Bitte eingeben. Jedes Zeichen erscheint als •." )
+            self.aus(EINFUEGEN_HINWEIS)
 
     def wahl(self, text: str, optionen: list[tuple[str, str]], vorgabe: str | None = None) -> str:
         """optionen: (Wert, Beschriftung). Antwort per Nummer."""
@@ -343,6 +408,9 @@ def ki_fragen(f: Frager, w: dict) -> None:
     hinweis = next(h for n, _, _, h in KIS if n == name)
     w["MOMO_KI"] = name
     w.pop("MOMO_KI_OHNE_SCHLUESSEL", None)
+    for k, ki in (("MIT_CLAUDE", "claude-abo"), ("MIT_VIBE", "mistral-vibe")):
+        if name != ki:
+            w.pop(k, None)  # Zusatzprogramm im Bild nur, wenn diese KI gewählt ist
     if name == "keine":
         return
     if name in ("ollama", "openai-kompatibel"):
@@ -374,6 +442,8 @@ def ki_fragen(f: Frager, w: dict) -> None:
     w["MOMO_KI_MODELL"] = "" if modell == standard else modell
     if name == "claude-abo":
         w["MIT_CLAUDE"] = "1"
+    if name == "mistral-vibe":
+        w["MIT_VIBE"] = "1"
 
 
 def ablage_fragen(f: Frager, w: dict) -> None:
@@ -448,6 +518,14 @@ def sonstiges_fragen(f: Frager, w: dict) -> None:
                                   w.get("MOMO_BETREIBER", ""), pflicht=True)
     vorlesen = f.ja("Jede Antwort auch als Sprachnachricht?", vorgabe=w.get("MOMO_VORLESEN", "immer") != "nie")
     w["MOMO_VORLESEN"] = "immer" if vorlesen else "nie"
+    if vorlesen:
+        while True:
+            t = f.frage("Sprechtempo in Prozent (100 = ruhig, 150 = schneller)", w.get("MOMO_SPRECHTEMPO") or "100")
+            t = t.strip().rstrip("%").strip()
+            if t.isdigit() and 50 <= int(t) <= 250:
+                break
+            f.aus("  Bitte eine Zahl von 50 bis 250.")
+        w["MOMO_SPRECHTEMPO"] = "" if t == "100" else t
 
 
 def uebersicht(w: dict) -> list[str]:
@@ -488,9 +566,19 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--ziel", default="/daten/einrichtung.env")
     p.add_argument("--ohne-pruefung", action="store_true", help="Zugänge nicht prüfen")
+    p.add_argument("--nur-ki", action="store_true", help="nur die eingestellte KI prüfen (nach dem Einbau)")
     a = p.parse_args(argv)
     f = Frager()
     vorher = bisherige_werte(dict(os.environ))
+    if a.nur_ki:
+        f.aus("Ich prüfe die KI …")
+        try:
+            f.aus(f"  ✓ {ki_pruefen(vorher)}")
+            return 0
+        except Exception as e:  # noqa: BLE001
+            f.aus(f"  ✗ Das klappt noch nicht: {verstaendlich(e)}")
+            f.aus("  Momo läuft trotzdem. Zum Ändern die Einrichtung noch einmal starten.")
+            return 1
     alter_messenger = vorher.get("MOMO_MESSENGER") or "deltachat"
     try:
         werte = ablauf(f, dict(vorher), pruefen=not a.ohne_pruefung)

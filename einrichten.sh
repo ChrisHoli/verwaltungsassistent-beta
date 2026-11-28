@@ -35,8 +35,11 @@ if grep -q '^MOMO_MESSENGER=signal' .env; then
   fi
 fi
 
-# Claude-Abo braucht Claude Code im Abbild (MIT_CLAUDE=1 steht dann in .env)
-if grep -q '^MIT_CLAUDE=1' .env; then echo "Baue mit Claude Code …"; $D compose build -q </dev/null; fi
+# Claude-Abo und Mistral Vibe brauchen ihr Programm im Abbild (MIT_CLAUDE=1 / MIT_VIBE=1 stehen dann in .env)
+if grep -q '^MIT_CLAUDE=1\|^MIT_VIBE=1' .env; then
+  echo "Baue das Programm für die KI ein …"; $D compose build -q </dev/null
+  $D compose run --rm --no-deps -T momo python -m tools.einrichten --nur-ki </dev/null || true
+fi
 
 $D compose up -d </dev/null
 echo "Momo läuft. Einladung wird vorbereitet (beim ersten Start bis zu zwei Minuten) …"

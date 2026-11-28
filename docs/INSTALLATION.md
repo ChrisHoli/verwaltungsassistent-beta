@@ -53,6 +53,7 @@ Bei Signal liegen die Schlüssel im Docker-Volume `signal` – beim Sichern mitn
 | Wahl | Wofür | Daten |
 |---|---|---|
 | **Mistral** (empfohlen) | gute Erklärungen, günstig | EU (Frankreich) |
+| Mistral Vibe | wie Mistral, aber über ein Le-Chat-Abo statt Abrechnung pro Brief | EU (Frankreich) |
 | Claude (Anthropic) | die besten Antwortbriefe | USA |
 | ChatGPT, Gemini | geht auch | USA |
 | Ollama | ohne Cloud, braucht einen starken Rechner | bleibt im Haus |

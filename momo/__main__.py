@@ -28,7 +28,7 @@ def main() -> None:
         ablage_ok = "erreichbar"
     except Exception as e:  # Start nicht verhindern, aber deutlich melden
         ablage_ok = f"NICHT erreichbar ({str(e)[:120]})"
-    stimme = Stimme(konfig.stimme)
+    stimme = Stimme(konfig.stimme, prozent=konfig.sprechtempo)
     ohr = Ohr(konfig.whisper, Path("/app/whisper"))
     logging.info("%s startet · KI: %s · Ablage: %s %s · Vorlesen: %s (Stimme %s) · Zuhören: %s (%s)", konfig.name,
                  ki.name, konfig.ablage, ablage_ok, konfig.vorlesen, "da" if stimme.verfuegbar else "fehlt",

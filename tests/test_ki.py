@@ -113,3 +113,43 @@ def test_gespraech_fehler_freundlich(tmp_path):
 
 def test_fuer_vorlesen():
     assert fuer_vorlesen("**Wichtig:** du musst\n- das tun\n# Titel") == "Wichtig: du musst\ndas tun\n Titel"
+
+
+def _falsches_vibe(tmp_path, antwort: str, code: int = 0, fehler: str = ""):
+    from momo.ki.mistral_vibe import MistralVibe
+
+    skript = tmp_path / "vibe"
+    skript.write_text("#!/bin/sh\n"
+                      f"cat > {tmp_path}/eingabe.txt\n"
+                      f"printf '%s' \"$*\" > {tmp_path}/argumente.txt\n"
+                      f"printf '%s' \"$MISTRAL_API_KEY\" > {tmp_path}/schluessel.txt\n"
+                      f"printf '%s' '{antwort}'\nprintf '%s' '{fehler}' >&2\nexit {code}\n")
+    skript.chmod(skript.stat().st_mode | stat.S_IEXEC)
+    return MistralVibe("geheim", "mistral-medium-3.5", befehl=str(skript), heim=str(tmp_path / "heim"))
+
+
+def test_mistral_vibe_erfolg_ohne_werkzeuge(tmp_path):
+    ki = _falsches_vibe(tmp_path, "Ein Bescheid ist ein Brief vom Amt.")
+    assert ki.fragen("Anweisung", [Nachricht("nutzer", "Was ist ein Bescheid?")]) == "Ein Bescheid ist ein Brief vom Amt."
+    assert (tmp_path / "eingabe.txt").read_text() == "Was ist ein Bescheid?"
+    assert (tmp_path / "schluessel.txt").read_text() == "geheim"
+    argumente = (tmp_path / "argumente.txt").read_text()
+    assert "--disabled-tools *" in argumente and "--max-turns 1" in argumente and "--model mistral-medium-3.5" in argumente
+    einstellung = (tmp_path / "heim" / "config.toml").read_text()
+    for zeile in ('disabled_tools = ["*"]', "enable_connectors = false", "enable_mcp = false",
+                  "include_project_context = false", '[tools.bash]\npermission = "never"',
+                  '[tools.web_fetch]\npermission = "never"', '[tools.write_file]\npermission = "never"'):
+        assert zeile in einstellung
+    assert not (tmp_path / "heim" / "anweisung.txt").exists()  # Anweisung wird wieder entfernt
+    assert not any((tmp_path / "heim" / "leer").iterdir())
+
+
+def test_mistral_vibe_fehler(tmp_path):
+    ki = _falsches_vibe(tmp_path, "", code=2, fehler="Error: 401 Unauthorized")
+    with pytest.raises(KiFehler) as e:
+        ki.fragen("v", [Nachricht("nutzer", "x")])
+    assert e.value.art == "anmeldung"
+    from momo.ki.mistral_vibe import MistralVibe
+    with pytest.raises(KiFehler):
+        MistralVibe("").fragen("v", [Nachricht("nutzer", "x")])
+    assert anbieter_waehlen("mistral-vibe", {"MOMO_VIBE_SCHLUESSEL": "k"}).schluessel == "k"

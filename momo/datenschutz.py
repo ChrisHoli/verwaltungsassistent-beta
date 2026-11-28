@@ -14,6 +14,7 @@ KI_BESCHREIBUNG = {
     "gemini": "an Google, eine Firma in den USA",
     "anthropic": "an Anthropic, eine Firma in den USA",
     "claude-abo": "an Anthropic, eine Firma in den USA. Das ist nur zum Testen",
+    "mistral-vibe": "an Mistral, eine Firma in Frankreich. Die Daten bleiben in der EU",
     "openrouter": "an OpenRouter, einen Vermittler in den USA",
     "groq": "an Groq, eine Firma in den USA",
 }

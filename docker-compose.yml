@@ -4,6 +4,7 @@ services:
       context: .
       args:
         MIT_CLAUDE: ${MIT_CLAUDE:-0}
+        MIT_VIBE: ${MIT_VIBE:-0}
     restart: unless-stopped
     env_file: .env
     environment:

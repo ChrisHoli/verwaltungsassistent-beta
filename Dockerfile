@@ -25,6 +25,11 @@ RUN if [ "$MIT_CLAUDE" = "1" ]; then \
       && npm cache clean --force && rm -rf /var/lib/apt/lists/*; \
     fi
 
+# Optional: Mistral Vibe für den Anschluss mistral-vibe (Mistral über ein Le-Chat-Abo)
+ARG MIT_VIBE=0
+ARG VIBE_FASSUNG=3.1.5
+RUN if [ "$MIT_VIBE" = "1" ]; then pip install --no-cache-dir "mistral-vibe==${VIBE_FASSUNG}"; fi
+
 COPY momo ./momo
 COPY tools ./tools
 

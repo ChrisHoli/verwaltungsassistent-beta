@@ -29,7 +29,8 @@ class Nachricht:
 _MUSTER = (
     ("anmeldung", ("not logged in", "/login", "invalid api key", "unauthorized", "401", "403",
                    "token has expired", "token expired", "revoked", "authentication")),
-    ("limit", ("usage limit", "limit reached", "rate limit", "rate_limit", "429", "credit", "quota")),
+    ("limit", ("usage limit", "limit reached", "rate limit", "rate_limit", "429", "credit", "quota", "402",
+               "billing", "subscription")),
     ("voruebergehend", ("overloaded", "529", "500", "502", "503", "504", "timeout", "timed out",
                         "network", "connect", "socket")),
 )
@@ -69,7 +70,7 @@ OFFENE_KIS = {
     "ollama": ("http://localhost:11434/v1", "", "", False),
     "openai-kompatibel": ("", "", "", False),
 }
-ALLE_KIS = ("keine", *OFFENE_KIS, "anthropic", "claude-abo", "befehl")
+ALLE_KIS = ("keine", *OFFENE_KIS, "anthropic", "claude-abo", "mistral-vibe", "befehl")
 
 
 def anbieter_waehlen(name: str, umgebung: dict[str, str] | None = None) -> KiAnbieter:
@@ -108,6 +109,12 @@ def anbieter_waehlen(name: str, umgebung: dict[str, str] | None = None) -> KiAnb
                          modell=modell or "sonnet",
                          befehl=feld("MOMO_CLAUDE_BEFEHL") or "claude",
                          heim=(u.get("MOMO_DATEN") or "/daten") + "/claude")
+    if name == "mistral-vibe":
+        from .mistral_vibe import MistralVibe
+
+        return MistralVibe(schluessel=schluessel or feld("MOMO_VIBE_SCHLUESSEL"), modell=modell,
+                           befehl=feld("MOMO_VIBE_BEFEHL") or "vibe",
+                           heim=(u.get("MOMO_DATEN") or "/daten") + "/vibe")
     if name == "befehl":
         from .befehl import Befehl
 

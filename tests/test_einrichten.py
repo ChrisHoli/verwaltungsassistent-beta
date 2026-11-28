@@ -66,25 +66,25 @@ def test_nextcloud_adresse():
 
 
 def test_ablauf_ordner_ohne_ki_ohne_mail(tmp_path):
-    w = e.ablauf(frager(["", "9", "1", "n", "Momo", "Christian", "j", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["", "10", "1", "n", "Momo", "Christian", "j", "150 %", "j"]), {}, pruefen=False)
     assert w["MOMO_KI"] == "keine" and w["MOMO_ABLAGE"] == "ordner" and w["MOMO_BETREIBER"] == "Christian"
-    assert w["MOMO_VORLESEN"] == "immer" and "MOMO_MAIL_ADRESSE" not in w
+    assert w["MOMO_VORLESEN"] == "immer" and "MOMO_MAIL_ADRESSE" not in w and w["MOMO_SPRECHTEMPO"] == "150"
 
 
 def test_ablauf_mistral_behält_schlüssel_mit_enter():
-    w = e.ablauf(frager(["", "", "", "", "", "", "n", "", "", "", "j"]),
+    w = e.ablauf(frager(["", "", "", "", "", "", "n", "", "", "", "", "j"]),
                  {"MOMO_KI": "mistral", "MISTRAL_API_KEY": "geheim", "MOMO_BETREIBER": "C"}, pruefen=False)
     assert w["MOMO_KI"] == "mistral" and w["MISTRAL_API_KEY"] == "geheim" and w["MOMO_KI_MODELL"] == ""
 
 
 def test_ablauf_mail_mit_senden():
-    w = e.ablauf(frager(["", "9", "1", "j", "max@posteo.de", "pw", "", "j", "", "", "C", "", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["", "10", "1", "j", "max@posteo.de", "pw", "", "j", "", "", "C", "", "", "j"]), {}, pruefen=False)
     assert w["MOMO_MAIL_IMAP"] == "posteo.de:993" and w["MOMO_MAIL_SMTP"] == "posteo.de:465"
     assert w["MOMO_MAIL_SENDEN"] == "ja"
 
 
 def test_ablauf_claude_abo_setzt_mit_claude():
-    w = e.ablauf(frager(["", "8", "tok", "", "1", "n", "", "C", "", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["", "8", "tok", "", "1", "n", "", "C", "", "", "j"]), {}, pruefen=False)
     assert w["MIT_CLAUDE"] == "1" and w["CLAUDE_CODE_OAUTH_TOKEN"] == "tok"
 
 
@@ -95,7 +95,7 @@ def test_abbruch_bei_ende_der_eingabe():
 
 def test_nein_beim_speichern_bricht_ab():
     with pytest.raises(e.Abbruch):
-        e.ablauf(frager(["", "9", "1", "n", "", "C", "", "n"]), {}, pruefen=False)
+        e.ablauf(frager(["", "10", "1", "n", "", "C", "", "", "n"]), {}, pruefen=False)
 
 
 def test_prüfung_ordner_und_ohne_ki(tmp_path):
@@ -120,7 +120,7 @@ def test_fehlschlag_wird_gemeldet_und_neu_gefragt(tmp_path):
 
 
 def test_main_schreibt_datei_nur_für_besitzer(tmp_path, monkeypatch):
-    antworten = iter(["", "9", "1", "n", "", "C", "", "j"])
+    antworten = iter(["", "10", "1", "n", "", "C", "", "", "j"])
     monkeypatch.setattr("builtins.input", lambda _t: next(antworten))
     for k in list(__import__("os").environ):
         if e.EIGENE.match(k):
@@ -139,13 +139,13 @@ def test_fehler_verständlich():
 
 
 def test_messenger_telegram_und_signal():
-    w = e.ablauf(frager(["3", "123:abc", "9", "1", "n", "", "C", "", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["3", "123:abc", "10", "1", "n", "", "C", "", "", "j"]), {}, pruefen=False)
     assert w["MOMO_MESSENGER"] == "telegram" and w["MOMO_TELEGRAM_TOKEN"] == "123:abc"
-    w = e.ablauf(frager(["2", "0151 1234 5678", "0171/9876543", "9", "1", "n", "", "C", "", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["2", "0151 1234 5678", "0171/9876543", "10", "1", "n", "", "C", "", "", "j"]), {}, pruefen=False)
     assert w["MOMO_SIGNAL_NUMMER"] == "+4915112345678" and w["MOMO_BESITZER_ADRESSEN"] == "+491719876543"
     assert w["COMPOSE_PROFILES"] == "signal"
     # zurück zu Delta Chat: Signal-Profil und Telefonnummer als Besitzer fallen weg
-    w = e.ablauf(frager(["1", "9", "1", "n", "", "C", "", "j"]), w, pruefen=False)
+    w = e.ablauf(frager(["1", "10", "1", "n", "", "C", "", "", "j"]), w, pruefen=False)
     assert "COMPOSE_PROFILES" not in w and "MOMO_BESITZER_ADRESSEN" not in w
 
 
@@ -158,3 +158,32 @@ def test_signal_nummer_wird_geprüft():
 def test_telegram_schlüssel_fehler_verständlich():
     from momo.kanal.telegram import TelegramFehler
     assert "BotFather" in e.verstaendlich(TelegramFehler("getMe: 401 Unauthorized"))
+
+
+def test_ablauf_mistral_vibe_setzt_mit_vibe():
+    w = e.ablauf(frager(["", "9", "vk", "", "1", "n", "", "C", "", "", "j"]), {"MIT_CLAUDE": "1"}, pruefen=False)
+    assert w["MOMO_KI"] == "mistral-vibe" and w["MIT_VIBE"] == "1" and w["MOMO_VIBE_SCHLUESSEL"] == "vk"
+    assert "MIT_CLAUDE" not in w
+
+
+def test_verdeckt_lesen_zeigt_punkte_und_erklaert_strg_v():
+    eingabe = iter("ab\x16c\x7fd\x1bxy\r")
+    ausgabe = []
+    t = e.verdeckt_lesen("Schlüssel: ", lambda: next(eingabe), ausgabe.append)
+    assert t == "abdxy"  # Strg+V und Escape fallen weg, Rücktaste löscht das c
+    gesamt = "".join(ausgabe)
+    assert "abd" not in gesamt and "•" in gesamt and "rechten Maustaste" in gesamt
+
+
+def test_geheim_meldet_laenge():
+    aus = []
+    f = e.Frager(eingabe=lambda t: "", geheim=lambda t: "  geheim1234 ", aus=aus.append)
+    assert f.geheim("Schlüssel") == "geheim1234"
+    assert any("10 Zeichen" in z and "…1234" in z for z in aus)
+
+
+def test_verstaendlich_kein_tarif():
+    from momo.ki import KiFehler, einordnen
+    roh = '402 {"message":"You need a subscription to access this API.","type":"billing_no_api_budget_configured"}'
+    assert einordnen(roh) == "limit"
+    assert "kein Tarif" in e.verstaendlich(KiFehler("limit", roh))

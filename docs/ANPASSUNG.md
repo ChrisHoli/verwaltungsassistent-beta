@@ -66,6 +66,7 @@ Delta Chat (Handy / Computer)
 2. **`anthropic`**: Claude über die API (`momo/ki/anthropic_api.py`, offizielles SDK, Standard `claude-opus-5-5`, Ersatzmodell bei Ablehnung serverseitig).
 3. **`befehl`**: jedes Programm, das Text über die Standardeingabe nimmt und über die Standardausgabe antwortet (`momo/ki/befehl.py`), z. B. `ollama run …` oder ein eigenes Skript.
 4. **`claude-abo`**: Claude Code mit Abo, nur zum Testen durch den Betreiber.
+5. **`mistral-vibe`**: Mistral über ein Le-Chat-Abo (Pro/Team) mit Mistral Vibe im Druckmodus (`momo/ki/mistral_vibe.py`, Bild mit `MIT_VIBE=1`). Schlüssel aus Mistral Studio unter Code → Vibe CLI in `MOMO_VIBE_SCHLUESSEL`. Vibe ist ein Programmier-Werkzeug: Momo schaltet alle Werkzeuge (Shell, Dateien, Websuche), Konnektoren, MCP, Unteragenten und den Projektkontext ab, ersetzt Vibes Anweisung durch die eigene und lässt nur eine Antwortrunde in einem leeren Ordner zu.
 
 Gemeinsame Einstellungen: `MOMO_KI_MODELL`, `MOMO_KI_SCHLUESSEL`, `MOMO_KI_ADRESSE` (Übersicht in `.env.example`). Für echte Briefe zählt der Datenschutz: Mistral (EU) oder eine lokale KI; US-Anbieter nur mit Auftragsverarbeitungsvertrag und Einverständnis.
 

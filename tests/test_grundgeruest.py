@@ -72,3 +72,9 @@ def test_stimme_erzeugt_m4a(tmp_path):
 
 def test_stimme_ohne_modell(tmp_path):
     assert Stimme(None).sprechen("x", tmp_path) is None
+
+
+def test_sprechtempo_in_prozent():
+    assert Stimme(None).faktor == 1 and Stimme(None).tempo == 1.15
+    assert Stimme(None, prozent=150).faktor == 1.5
+    assert Stimme(None, prozent=999).faktor == 2.5 and Stimme(None, prozent=10).faktor == 0.5  # gedeckelt

@@ -809,7 +809,7 @@ class Bote:
         return konto
 
     def _einladung_entfernen(self) -> None:
-        for name in ("einladung.txt", "einladung.svg"):
+        for name in ("einladung.txt", "einladung.svg", "einladung.pdf"):
             (self.konfig.daten / name).unlink(missing_ok=True)
 
     def _einladung_zeigen(self, konto) -> None:

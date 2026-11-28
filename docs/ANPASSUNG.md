@@ -92,7 +92,7 @@ DSGVO: Der Anbieter allein reicht nicht. Die Person muss wissen und einverstande
 ## Betrieb und Installation
 
 - **Nutzer (der Mensch, nicht Momo):** Delta Chat installieren → QR-Code scannen (bekommt er vom Betreiber) → „Hallo“ sagen. Fertig.
-- **Betreiber:** `docker compose up` mit einer `.env` (KI-Schlüssel, Speicher). Beim ersten Start zeigt Momo den Einladungs-QR. Wer ihn zuerst verschlüsselt nutzt, wird Besitzer; danach ist Momo für alle anderen stumm. Zurücksetzen über eine Datei im Datenordner.
+- **Betreiber (seit V11, 28.11.2026):** `./einrichten.sh`. Der Assistent (`tools/einrichten.py`, läuft im Container) fragt KI, Speicherort, Postfach, Name und Betreiber ab, prüft jeden Zugang (KI-Testfrage, Probedatei schreiben/lesen/löschen, Postfach-Anmeldung ohne Versand), schreibt `.env` (nur für den Besitzer lesbar, alte als `.env.bak-…`) und startet Momo. Der Einladungs-QR erscheint im Terminal und als `einladung.pdf` (drei Schritte in großer Schrift zum Ausdrucken); nach dem Koppeln löscht Momo beides. Nochmal starten ändert Einstellungen, Enter behält den alten Wert. Updates: `./aktualisieren.sh`, `daten/` bleibt. Anleitung auf einer Seite: `docs/INSTALLATION.md`. Warum nicht im Chat: Passwörter gehören nicht in Nachrichten, und die Person soll mit Technik nichts zu tun haben. Wer ihn zuerst verschlüsselt nutzt, wird Besitzer; danach ist Momo für alle anderen stumm. Zurücksetzen über eine Datei im Datenordner.
 - **Wo läuft der Bot?** Für den Probelauf: auf holiwork-alpha in einem **eigenen Container ohne Zugriff auf die anderen Dienste dort**; Nextcloud nur über den eigenen Benutzer `momo`. Später auch auf einem Raspberry Pi bei der Person zu Hause.
 - Ein Bot je Person: getrennte Daten, getrennter KI-Schlüssel, leicht übergebbar.
 

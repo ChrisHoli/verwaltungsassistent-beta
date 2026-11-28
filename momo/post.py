@@ -141,9 +141,24 @@ class Postfach:
             except Exception:
                 pass
 
-    def senden(self, m: EmailMessage) -> None:
-        if not self.z.senden or not self.z.smtp:
-            raise PostFehler("Abschicken ist nicht eingeschaltet (MOMO_MAIL_SENDEN, MOMO_MAIL_SMTP)")
+    def pruefen(self) -> str:
+        """Anmelden (IMAP, bei eingeschaltetem Senden auch SMTP), nichts verschicken. Gibt den Entwürfe-Ordner zurück."""
+        imap = self._imap()
+        try:
+            ordner = _ordner_mit(imap, "\\Drafts", ("Drafts", "Entwürfe", "INBOX.Drafts", "Entwurf")).strip('"')
+        finally:
+            try:
+                imap.logout()
+            except Exception:
+                pass
+        if self.z.senden:
+            if not self.z.smtp:
+                raise PostFehler("SMTP-Server fehlt (MOMO_MAIL_SMTP)")
+            with self._smtp() as smtp:
+                pass
+        return ordner
+
+    def _smtp(self) -> smtplib.SMTP:
         host, port = _host_port(self.z.smtp, 465)
         try:
             if port == 465:
@@ -151,8 +166,16 @@ class Postfach:
             else:
                 smtp = smtplib.SMTP(host, port, timeout=self.zeitlimit)
                 smtp.starttls(context=ssl.create_default_context())
-            with smtp:
-                smtp.login(self.z.adresse, self.z.passwort)
+            smtp.login(self.z.adresse, self.z.passwort)
+            return smtp
+        except (OSError, smtplib.SMTPException) as e:
+            raise PostFehler(f"SMTP: {type(e).__name__}: {str(e)[:150]}") from None
+
+    def senden(self, m: EmailMessage) -> None:
+        if not self.z.senden or not self.z.smtp:
+            raise PostFehler("Abschicken ist nicht eingeschaltet (MOMO_MAIL_SENDEN, MOMO_MAIL_SMTP)")
+        try:
+            with self._smtp() as smtp:
                 smtp.send_message(m)
         except (OSError, smtplib.SMTPException) as e:
             raise PostFehler(f"SMTP: {type(e).__name__}: {str(e)[:150]}") from None

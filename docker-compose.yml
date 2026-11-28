@@ -10,6 +10,9 @@ services:
       TZ: Europe/Berlin
     volumes:
       - ./daten:/daten
+    # Für Ollama auf demselben Rechner: Adresse http://host.docker.internal:11434/v1
+    extra_hosts:
+      - host.docker.internal:host-gateway
     # Kein Port nach außen: Momo spricht nur über Delta Chat.
     security_opt:
       - no-new-privileges:true

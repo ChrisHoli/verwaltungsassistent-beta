@@ -7,3 +7,6 @@ CLAUDE.local.md
 /daten/
 .pytest_cache/
 docker-compose.override.yml
+.env.bak-*
+.env.neu
+/einladung.pdf

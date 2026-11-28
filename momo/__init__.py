@@ -1,1 +1,1 @@
-"""Momo – Delta-Chat-Bot, der Behördenpost in einfacher Sprache erklärt und vorliest."""
+"""Momo – Chat-Assistent (Delta Chat, Signal oder Telegram), der Briefe in einfacher Sprache erklärt und vorliest."""

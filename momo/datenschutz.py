@@ -35,24 +35,33 @@ LOESCH_FERTIG = ("Ich habe alles gelöscht: deine Briefe, Fristen, Antwortbriefe
                  "Du kannst mir trotzdem weiter schreiben. Wenn du ganz aufhören willst, sag dem Betreiber Bescheid.")
 
 
-def hinweis(ki: str, ablage: str, betreiber: str, aufheben_tage: int) -> str:
+CHAT_BESCHREIBUNG = {
+    "deltachat": "Unser Chat ist verschlüsselt. Nur du und ich können ihn lesen.",
+    "signal": "Unser Chat ist verschlüsselt. Nur du und ich können ihn lesen.",
+    "telegram": "Unser Chat läuft über Telegram. Telegram kann mitlesen, auch deine Fotos von Briefen.",
+}
+
+
+def hinweis(ki: str, ablage: str, betreiber: str, aufheben_tage: int, messenger: str = "deltachat") -> str:
     wer = f"von {betreiber}" if betreiber else "vom Betreiber"
     ki_satz = ("Ich arbeite gerade ohne KI." if ki in ("", "keine") else
                f"Damit ich deinen Brief verstehe, schicke ich den Text {KI_BESCHREIBUNG.get(ki, 'an eine KI')}. "
                "Fotos schicke ich nicht.")
     return "\n".join([
         "Kurz zu deinen Daten:",
-        f"Ich laufe auf einem Computer {wer}. Unser Chat ist verschlüsselt.",
+        f"Ich laufe auf einem Computer {wer}. {CHAT_BESCHREIBUNG.get(messenger, CHAT_BESCHREIBUNG['deltachat'])}",
         "Fotos und Sprachnachrichten lese ich auf diesem Computer. Zuhören und Vorlesen bleibt hier.",
         ki_satz,
         f"Deine Briefe lege ich {ABLAGE_BESCHREIBUNG.get(ablage, 'beim Betreiber')} ab.",
         "Was du mir über dich sagst, damit ich es mir merke, bleibt auf diesem Computer. Die KI sieht es nur, "
         "wenn ich einen Brief für dich schreibe.",
-        f"Unseren Chat lösche ich bei mir nach {aufheben_tage} Tagen. Deine Briefe und Fristen bleiben, bis du sie löschen lässt.",
+        (f"Unseren Chat lösche ich bei mir nach {aufheben_tage} Tagen." if messenger == "deltachat" else
+         f"Fotos und Sprachnachrichten lösche ich bei mir nach einem Tag. Im {messenger.capitalize()}-Chat bleiben sie, "
+         "bis du den Chat dort löschst.") + " Deine Briefe und Fristen bleiben, bis du sie löschen lässt.",
         "Wenn du willst, dass ich alles lösche, sag: Lösch alles von mir.",
     ])
 
 
-# Was Momo im Datenordner über die Person weiß (Delta-Chat-Konto und Kopplung bleiben)
+# Was Momo im Datenordner über die Person weiß (Messenger-Konto und Kopplung bleiben)
 PERSONENDATEIEN = ("fakten.json", "mail_entwurf.eml", "vorgaenge.json", "verlauf.json", "einstellungen.json", "letzter_brief.json", "entwurf.json",
                    "absender.json", "app.json")

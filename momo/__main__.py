@@ -16,6 +16,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     # Delta-Chat-Ereignisse nicht im Einzelnen protokollieren (könnten Inhalte enthalten)
     logging.getLogger("deltachat_rpc_client").setLevel(logging.WARNING)
+    # httpx schreibt jede Adresse ins Log; bei Telegram steht der Zugangsschlüssel darin
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     konfig = Konfig.aus_umgebung()
     konfig.daten.mkdir(parents=True, exist_ok=True)
     ki = anbieter_waehlen(konfig.ki)
@@ -36,7 +39,12 @@ def main() -> None:
     zugang = post.Zugang.aus_umgebung(os.environ)
     logging.info("E-Mail: %s", "nicht eingerichtet" if zugang is None else
                  f"Entwürfe ins Postfach, Abschicken {'nach Bestätigung' if zugang.senden else 'aus'}")
-    Bote(konfig, stimme, gespraech, Briefablage(ablage), ohr, post.Postfach(zugang) if zugang else None).starten()
+    from .kanal import kanal_waehlen
+
+    kanal = kanal_waehlen(konfig.messenger, konfig)
+    logging.info("Messenger: %s", kanal.name)
+    Bote(konfig, stimme, gespraech, Briefablage(ablage), ohr, post.Postfach(zugang) if zugang else None,
+         kanal).starten()
 
 
 if __name__ == "__main__":

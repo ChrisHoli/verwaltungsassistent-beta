@@ -22,6 +22,7 @@ class Konfig:
     absender: str = ""
     betreiber: str = ""
     aufheben_tage: int = 30
+    messenger: str = "deltachat"
 
     @property
     def dc_ordner(self) -> Path:
@@ -49,4 +50,5 @@ class Konfig:
             absender=u.get("MOMO_ABSENDER", "").strip(),
             betreiber=u.get("MOMO_BETREIBER", "").strip(),
             aufheben_tage=int(u.get("MOMO_AUFHEBEN_TAGE", "30").strip() or 30),
+            messenger=u.get("MOMO_MESSENGER", "deltachat").strip().lower() or "deltachat",
         )

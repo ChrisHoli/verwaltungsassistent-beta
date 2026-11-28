@@ -9,17 +9,35 @@ import time
 from pathlib import Path
 
 
-SCHRITTE = [
-    ("1", "Delta Chat holen", "Im App Store oder bei Google Play „Delta Chat“ suchen und installieren. "
-     "Beim Öffnen „Ich bin neu“ wählen, einen Namen eingeben, fertig."),
-    ("2", "Diesen Code scannen", "In Delta Chat auf das QR-Zeichen tippen (oder im Menü „QR-Code scannen“) und "
-     "die Kamera auf den Code halten. Dann bestätigen."),
-    ("3", "Hallo sagen", "Schreib „Hallo“ oder schick eine Sprachnachricht. Danach kannst du Momo einfach Fotos "
-     "von Briefen schicken."),
-]
+SCHRITTE = {
+    "deltachat": [
+        ("1", "Delta Chat holen", "Im App Store oder bei Google Play „Delta Chat“ suchen und installieren. "
+         "Beim Öffnen „Ich bin neu“ wählen, einen Namen eingeben, fertig."),
+        ("2", "Diesen Code scannen", "In Delta Chat auf das QR-Zeichen tippen (oder im Menü „QR-Code scannen“) und "
+         "die Kamera auf den Code halten. Dann bestätigen."),
+        ("3", "Hallo sagen", "Schreib „Hallo“ oder schick eine Sprachnachricht. Danach kannst du {name} einfach "
+         "Fotos von Briefen schicken."),
+    ],
+    "telegram": [
+        ("1", "Telegram holen", "Im App Store oder bei Google Play „Telegram“ suchen, installieren und mit deiner "
+         "Handynummer anmelden."),
+        ("2", "Diesen Code scannen", "Die Kamera deines Handys auf den Code halten und den Link öffnen. "
+         "Er öffnet Telegram."),
+        ("3", "Auf „Starten“ tippen", "Unten erscheint der Knopf „Starten“. Tipp darauf. Danach kannst du {name} "
+         "Fotos von Briefen schicken oder Sprachnachrichten."),
+    ],
+    "signal": [
+        ("1", "Signal holen", "Im App Store oder bei Google Play „Signal“ suchen, installieren und mit deiner "
+         "Handynummer anmelden."),
+        ("2", "Diesen Code scannen", "Die Kamera deines Handys auf den Code halten und den Link öffnen. "
+         "Er öffnet den Chat mit {name} in Signal."),
+        ("3", "Hallo sagen", "Schreib „Hallo“ oder schick eine Sprachnachricht. Danach kannst du {name} einfach "
+         "Fotos von Briefen schicken."),
+    ],
+}
 
 
-def blatt(link: str, ziel: Path, name: str = "Momo") -> None:
+def blatt(link: str, ziel: Path, name: str = "Momo", messenger: str = "deltachat") -> None:
     """Einladung zum Ausdrucken: drei Schritte in großer Schrift und der QR-Code."""
     from reportlab.graphics import renderPDF
     from reportlab.graphics.barcode.qr import QrCodeWidget
@@ -44,7 +62,8 @@ def blatt(link: str, ziel: Path, name: str = "Momo") -> None:
     c.setFont(fett, 30)
     c.drawString(links, hoehe - 32 * mm, f"So erreichst du {name}")
     y = hoehe - 52 * mm
-    for nummer, titel, text in SCHRITTE:
+    for nummer, titel, text in SCHRITTE.get(messenger, SCHRITTE["deltachat"]):
+        text = text.format(name=name)
         c.setFillColorRGB(0.16, 0.36, 0.55)
         c.circle(links + 7 * mm, y - 2 * mm, 7 * mm, fill=1, stroke=0)
         c.setFillColorRGB(1, 1, 1)
@@ -91,14 +110,17 @@ def main(argv=None) -> int:
 
     import segno
 
-    print("\nMit Delta Chat scannen: auf das QR-Zeichen tippen (oder Menü → QR-Code scannen).\n")
+    messenger = os.environ.get("MOMO_MESSENGER", "deltachat") or "deltachat"
+    print("\nMit Delta Chat scannen: auf das QR-Zeichen tippen (oder Menü → QR-Code scannen).\n" if messenger == "deltachat"
+          else "\nMit der Handykamera scannen und den Link öffnen.\n")
     segno.make(link, error="m").terminal(compact=True)
     try:
-        blatt(link, daten / "einladung.pdf", os.environ.get("MOMO_NAME", "Momo") or "Momo")
+        blatt(link, daten / "einladung.pdf", os.environ.get("MOMO_NAME", "Momo") or "Momo",
+              os.environ.get("MOMO_MESSENGER", "deltachat") or "deltachat")
         print("\nEinladungsblatt mit drei Schritten in großer Schrift ist erstellt.")
     except Exception as e:  # noqa: BLE001 – das Blatt ist eine Zugabe
         print(f"\n(Einladungsblatt nicht erstellt: {str(e)[:120]})")
-    print("Danach in Delta Chat „Hallo“ an Momo schreiben.\n")
+    print("Danach „Starten“ tippen.\n" if messenger == "telegram" else "Danach „Hallo“ an Momo schreiben.\n")
     return 0
 
 

@@ -13,15 +13,16 @@ class Besitzer:
     def __init__(self, adressen: str, datei: Path):
         self.adressen = {a.strip().lower() for a in adressen.split(",") if a.strip()}
         self.datei = Path(datei)
-        self.kontakt_id: int | None = self._laden()
+        self.kontakt_id: int | str | None = self._laden()
 
-    def _laden(self) -> int | None:
+    def _laden(self) -> int | str | None:
         try:
-            return int(json.loads(self.datei.read_text())["kontakt_id"])
+            k = json.loads(self.datei.read_text())["kontakt_id"]
+            return k if isinstance(k, (int, str)) and k != "" else None
         except (FileNotFoundError, KeyError, ValueError, TypeError):
             return None
 
-    def _speichern(self, kontakt_id: int) -> None:
+    def _speichern(self, kontakt_id: int | str) -> None:
         self.datei.parent.mkdir(parents=True, exist_ok=True)
         self.datei.write_text(json.dumps({"kontakt_id": kontakt_id}))
 
@@ -29,7 +30,7 @@ class Besitzer:
     def gekoppelt(self) -> bool:
         return self.kontakt_id is not None
 
-    def pruefen(self, kontakt_id: int, adresse: str, verschluesselt: bool) -> tuple[bool, bool]:
+    def pruefen(self, kontakt_id: int | str, adresse: str, verschluesselt: bool) -> tuple[bool, bool]:
         """Gibt (erlaubt, neu_gekoppelt) zurück."""
         if self.kontakt_id is not None:
             return kontakt_id == self.kontakt_id, False

@@ -66,25 +66,25 @@ def test_nextcloud_adresse():
 
 
 def test_ablauf_ordner_ohne_ki_ohne_mail(tmp_path):
-    w = e.ablauf(frager(["9", "1", "n", "Momo", "Christian", "j", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["", "9", "1", "n", "Momo", "Christian", "j", "j"]), {}, pruefen=False)
     assert w["MOMO_KI"] == "keine" and w["MOMO_ABLAGE"] == "ordner" and w["MOMO_BETREIBER"] == "Christian"
     assert w["MOMO_VORLESEN"] == "immer" and "MOMO_MAIL_ADRESSE" not in w
 
 
 def test_ablauf_mistral_behält_schlüssel_mit_enter():
-    w = e.ablauf(frager(["", "", "", "", "", "n", "", "", "", "j"]),
+    w = e.ablauf(frager(["", "", "", "", "", "", "n", "", "", "", "j"]),
                  {"MOMO_KI": "mistral", "MISTRAL_API_KEY": "geheim", "MOMO_BETREIBER": "C"}, pruefen=False)
     assert w["MOMO_KI"] == "mistral" and w["MISTRAL_API_KEY"] == "geheim" and w["MOMO_KI_MODELL"] == ""
 
 
 def test_ablauf_mail_mit_senden():
-    w = e.ablauf(frager(["9", "1", "j", "max@posteo.de", "pw", "", "j", "", "", "C", "", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["", "9", "1", "j", "max@posteo.de", "pw", "", "j", "", "", "C", "", "j"]), {}, pruefen=False)
     assert w["MOMO_MAIL_IMAP"] == "posteo.de:993" and w["MOMO_MAIL_SMTP"] == "posteo.de:465"
     assert w["MOMO_MAIL_SENDEN"] == "ja"
 
 
 def test_ablauf_claude_abo_setzt_mit_claude():
-    w = e.ablauf(frager(["8", "tok", "", "1", "n", "", "C", "", "j"]), {}, pruefen=False)
+    w = e.ablauf(frager(["", "8", "tok", "", "1", "n", "", "C", "", "j"]), {}, pruefen=False)
     assert w["MIT_CLAUDE"] == "1" and w["CLAUDE_CODE_OAUTH_TOKEN"] == "tok"
 
 
@@ -95,7 +95,7 @@ def test_abbruch_bei_ende_der_eingabe():
 
 def test_nein_beim_speichern_bricht_ab():
     with pytest.raises(e.Abbruch):
-        e.ablauf(frager(["9", "1", "n", "", "C", "", "n"]), {}, pruefen=False)
+        e.ablauf(frager(["", "9", "1", "n", "", "C", "", "n"]), {}, pruefen=False)
 
 
 def test_prüfung_ordner_und_ohne_ki(tmp_path):
@@ -120,7 +120,7 @@ def test_fehlschlag_wird_gemeldet_und_neu_gefragt(tmp_path):
 
 
 def test_main_schreibt_datei_nur_für_besitzer(tmp_path, monkeypatch):
-    antworten = iter(["9", "1", "n", "", "C", "", "j"])
+    antworten = iter(["", "9", "1", "n", "", "C", "", "j"])
     monkeypatch.setattr("builtins.input", lambda _t: next(antworten))
     for k in list(__import__("os").environ):
         if e.EIGENE.match(k):
@@ -136,3 +136,25 @@ def test_fehler_verständlich():
     assert e.verstaendlich(KiFehler("anmeldung", "401 Invalid")).startswith("Der Schlüssel wird nicht angenommen")
     assert "App-Passwort" in e.verstaendlich(RuntimeError("IMAP: error: b'[AUTHENTICATIONFAILED] Invalid'"))
     assert e.verstaendlich(RuntimeError("sonstwas")) == "sonstwas"
+
+
+def test_messenger_telegram_und_signal():
+    w = e.ablauf(frager(["3", "123:abc", "9", "1", "n", "", "C", "", "j"]), {}, pruefen=False)
+    assert w["MOMO_MESSENGER"] == "telegram" and w["MOMO_TELEGRAM_TOKEN"] == "123:abc"
+    w = e.ablauf(frager(["2", "0151 1234 5678", "0171/9876543", "9", "1", "n", "", "C", "", "j"]), {}, pruefen=False)
+    assert w["MOMO_SIGNAL_NUMMER"] == "+4915112345678" and w["MOMO_BESITZER_ADRESSEN"] == "+491719876543"
+    assert w["COMPOSE_PROFILES"] == "signal"
+    # zurück zu Delta Chat: Signal-Profil und Telefonnummer als Besitzer fallen weg
+    w = e.ablauf(frager(["1", "9", "1", "n", "", "C", "", "j"]), w, pruefen=False)
+    assert "COMPOSE_PROFILES" not in w and "MOMO_BESITZER_ADRESSEN" not in w
+
+
+def test_signal_nummer_wird_geprüft():
+    with pytest.raises(ValueError):
+        e.messenger_pruefen({"MOMO_MESSENGER": "signal", "MOMO_SIGNAL_NUMMER": "0151"})
+    assert "gut" in e.messenger_pruefen({"MOMO_MESSENGER": "signal", "MOMO_SIGNAL_NUMMER": "+4915112345678"})
+
+
+def test_telegram_schlüssel_fehler_verständlich():
+    from momo.kanal.telegram import TelegramFehler
+    assert "BotFather" in e.verstaendlich(TelegramFehler("getMe: 401 Unauthorized"))

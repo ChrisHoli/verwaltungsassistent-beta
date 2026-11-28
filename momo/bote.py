@@ -1,6 +1,6 @@
-"""Delta-Chat-Anbindung: Konto einrichten, Einladung zeigen, Besitzer prüfen, antworten.
+"""Der Bote: Besitzer prüfen, verstehen, antworten. Den Messenger stellt ein Kanal (momo/kanal).
 
-Muster aus einer bewährten Delta-Chat-Brücke übernommen. Im Log nie Nachrichteninhalte.
+Im Log nie Nachrichteninhalte.
 """
 
 import logging
@@ -10,8 +10,6 @@ import threading
 import time
 from pathlib import Path
 
-from deltachat_rpc_client import Bot, DeltaChat, Rpc, events
-from deltachat_rpc_client.const import EventType, ViewType
 
 from .ablage import AblageFehler
 from . import saetze
@@ -36,32 +34,18 @@ from .ki import KiFehler
 from .lesen import brief_ist_schlecht, seiten_lesen
 from .konfig import Konfig
 from .stimme import Stimme
+from .kanal import SPRACHE, Eingang, Kanal
 
 log = logging.getLogger(__name__)
 
 LESEN_NACH_SEKUNDEN = 45
 
-ARTEN = {
-    ViewType.TEXT: "text",
-    ViewType.IMAGE: "bild",
-    ViewType.GIF: "bild",
-    ViewType.FILE: "datei",
-    ViewType.VOICE: "sprache",
-    ViewType.AUDIO: "sprache",
-}
-
-
-def art_von(view_type) -> str:
-    try:
-        return ARTEN.get(ViewType(view_type), "sonst")
-    except ValueError:
-        return "sonst"
-
 
 class Bote:
     def __init__(self, konfig: Konfig, stimme: Stimme, gespraech: Gespraech, briefe: Briefablage,
-                 ohr: Ohr | None = None, postfach: "post.Postfach | None" = None):
+                 ohr: Ohr | None = None, postfach: "post.Postfach | None" = None, kanal: "Kanal | None" = None):
         self.konfig = konfig
+        self.kanal = kanal
         self.stimme = stimme
         self.ohr = ohr
         self.postfach = postfach
@@ -82,28 +66,21 @@ class Bote:
         self.tmp = konfig.daten / "tmp"
 
     # --- Empfangen ---
-    def _bei_nachricht(self, ereignis) -> None:
-        s = ereignis.message_snapshot
-        absender = s.sender.get_snapshot()
-        erlaubt, neu = self.besitzer.pruefen(
-            kontakt_id=absender.id,
-            adresse=absender.address,
-            verschluesselt=bool(absender.is_key_contact),
-        )
+    def bei_eingang(self, s: Eingang) -> None:
+        """Eine Nachricht aus dem Messenger (siehe momo/kanal)."""
+        erlaubt, neu = self.besitzer.pruefen(kontakt_id=s.kontakt, adresse=s.adresse, verschluesselt=s.vertraut)
         if not erlaubt:
-            log.warning("Nachricht von fremdem Kontakt ignoriert (Kontakt %s, verschlüsselt: %s)",
-                        absender.id, bool(absender.is_key_contact))
+            log.warning("Nachricht von fremdem Kontakt ignoriert (vertraut: %s)", s.vertraut)
             return
         s.chat.accept()
-        art = art_von(s.view_type)
+        art = s.art
         if neu:
-            log.info("Besitzer gekoppelt (Kontakt %s).", absender.id)
+            log.info("Besitzer gekoppelt.")
             self._einladung_entfernen()
         log.info("Nachricht vom Besitzer: Art %s", art)
         self.vorgaenge.chat_merken(s.chat.id)
         self._chat = s.chat
-        zitat = getattr(s, "quote", None) or {}
-        zitiert = zitat.get("message_id") if zitat.get("kind") == "WithMessage" else None
+        zitiert = s.zitiert
         if art in ("bild", "datei") and s.file:
             antwort = self._brief_aufnehmen(s)
             if neu:
@@ -118,7 +95,8 @@ class Bote:
 
     def _datenschutz_hinweis(self) -> Antwort:
         k = self.konfig
-        return Antwort(datenschutz.hinweis(k.ki, k.ablage, k.betreiber, k.aufheben_tage))
+        return Antwort(datenschutz.hinweis(k.ki, k.ablage, k.betreiber, k.aufheben_tage,
+                                           self.kanal.name if self.kanal is not None else k.messenger))
 
     def _datenschutz_einmal(self, chat) -> None:
         if not self.einstellungen.wert("datenschutz_gesagt"):
@@ -169,6 +147,8 @@ class Bote:
                 antwort = self._antwortbrief(text, zitiert)
                 if antwort is not None:
                     return antwort
+        if wunsch == saetze.APP and self.kanal is not None and not self.kanal.app_moeglich:
+            return self._gemerkt(text, Antwort(self._uebersicht_als_text()))
         if wunsch == saetze.APP:
             gesendet = self._app_schicken(self._chat)
             return self._gemerkt(text, Antwort(
@@ -394,7 +374,7 @@ class Bote:
         return self._app_lesen().get("nachricht")
 
     def _app_schicken(self, chat) -> bool:
-        if chat is None:
+        if chat is None or (self.kanal is not None and not self.kanal.app_moeglich):
             return False
         try:
             datei = miniapp.xdc_bauen(self.tmp / "momo.xdc")
@@ -458,6 +438,22 @@ class Bote:
         if geaendert:
             self._uebersicht_ablegen()
             self._app_auffrischen()
+
+    def _uebersicht_als_text(self) -> str:
+        """Für Messenger ohne Mini-App: Briefe nach Bereichen und die nächsten Fristen."""
+        briefe = self.vorgaenge.daten["briefe"]
+        if not briefe:
+            return "Du hast mir noch keinen Brief geschickt. Schick mir ein Foto, dann lege ich ihn ab."
+        bereiche: dict[str, list[str]] = {}
+        for b in briefe:
+            bereiche.setdefault(b.get("kategorie") or "Sonstiges", []).append(
+                f"{b.get('absender') or 'Unbekannt'}" + (f", {b['betreff']}" if b.get("betreff") else ""))
+        zeilen = ["Deine Briefe:"]
+        for bereich, liste in bereiche.items():
+            zeilen.append(f"{bereich}: " + "; ".join(liste[-5:]) + (f" (und {len(liste) - 5} weitere)"
+                                                                     if len(liste) > 5 else ""))
+        zeilen += ["", ueberblick_text(self.vorgaenge.kommend(None), None)]
+        return "\n".join(zeilen)
 
     def _uebersicht_ablegen(self) -> None:
         """Fristen als einfache Textdatei in den Speicherort, damit auch Helfer sie sehen."""
@@ -638,6 +634,9 @@ class Bote:
                 return Antwort("Damit ich sicher bin: Antworte bitte direkt auf meine Frage zum Löschen. "
                                "Halte sie gedrückt, tipp auf Antworten und sag: Ja, löschen.")
             self.alles_loeschen()
+            if self.kanal is not None and not self.kanal.loescht_selbst:
+                return Antwort(datenschutz.LOESCH_FERTIG + " Den Chat hier lösch bitte noch selbst: Halte ihn in der "
+                               "Chatliste gedrückt und tipp auf Löschen.")
             return Antwort(datenschutz.LOESCH_FERTIG)
         if datenschutz.LOESCH_WUNSCH.search(text):
             self.gespraech.merken("nutzer", text)
@@ -663,9 +662,9 @@ class Bote:
         self.gespraech.verlauf = []
         self.gespraech._sichern()
         self.einstellungen.setzen("datenschutz_gesagt", True)
-        if self._chat is not None and self._konto is not None:
+        if self._chat is not None and self.kanal is not None:
             try:
-                self._konto.delete_messages(self._chat.get_messages())
+                self.kanal.verlauf_loeschen(self._chat)
             except Exception as e:
                 log.warning("Chatverlauf bei Momo nicht gelöscht: %s", str(e)[:150])
         log.info("Alle Daten der Person gelöscht")
@@ -778,6 +777,7 @@ class Bote:
         while not halt.wait(warten):
             warten = 300
             try:
+                self._aufraeumen()  # empfangene Fotos und Sprachnachrichten nach einem Tag löschen
                 self._erinnern(konto)
             except Exception:
                 log.exception("Erinnern fehlgeschlagen")
@@ -788,7 +788,7 @@ class Bote:
         if antwort.vorlesen and (antwort.immer_vorlesen or self.einstellungen.vorlesen == "immer"):
             datei = self.stimme.sprechen(antwort.zum_vorlesen, self.tmp)
         if datei:
-            nachricht = chat.send_message(text=antwort.text, file=str(datei), viewtype=ViewType.VOICE)
+            nachricht = chat.send_message(text=antwort.text, file=str(datei), viewtype=SPRACHE)
         else:
             nachricht = chat.send_text(antwort.text)
         if antwort.datei:
@@ -811,46 +811,15 @@ class Bote:
             if p.is_file() and p.stat().st_mtime < grenze:
                 p.unlink(missing_ok=True)
 
-    def _konto_einrichten(self, dc: DeltaChat):
-        konten = dc.get_all_accounts()
-        konto = konten[0] if konten else dc.add_account()
-        if not konto.is_configured():
-            log.info("Richte Delta-Chat-Konto ein über %s …", self.konfig.chatmail_qr)
-            konto.set_config("bot", "1")
-            konto.set_config("displayname", self.konfig.name)
-            konto.add_transport_from_qr(self.konfig.chatmail_qr)
-        # Chat (mit Fotos und Sprachnachrichten) bei Momo nach der Frist löschen; Briefe liegen im Speicherort
-        konto.set_config("delete_device_after", str(self.konfig.aufheben_tage * 86400))
-        return konto
-
     def _einladung_entfernen(self) -> None:
         for name in ("einladung.txt", "einladung.svg", "einladung.pdf"):
             (self.konfig.daten / name).unlink(missing_ok=True)
 
-    def _einladung_zeigen(self, konto) -> None:
-        link, svg = konto.get_qr_code_svg()
-        (self.konfig.daten / "einladung.txt").write_text(link + "\n")
-        (self.konfig.daten / "einladung.svg").write_text(svg)
-        log.warning(
-            "NOCH NICHT GEKOPPELT. QR-Code: einladung.svg im Datenordner. "
-            "Mit Delta Chat scannen und 'Hallo' schreiben. Link:\n\n    %s\n", link)
+    def nebenher_starten(self, quelle) -> None:
+        """Vom Kanal aufgerufen, sobald er verbunden ist: Erinnerungen laufen in einem eigenen Faden."""
+        halt = threading.Event()
+        threading.Thread(target=self._erinnern_schleife, args=(quelle, halt), daemon=True, name="erinnern").start()
 
     def starten(self) -> None:
-        self.konfig.dc_ordner.mkdir(parents=True, exist_ok=True)
         self._aufraeumen()
-        with Rpc(accounts_dir=str(self.konfig.dc_ordner / "konten")) as rpc:
-            konto = self._konto_einrichten(DeltaChat(rpc))
-            self._konto = konto
-            haken = events.HookCollection()
-            haken.on(events.NewMessage(is_info=False))(self._bei_nachricht)
-            haken.on(events.RawEvent(EventType.WEBXDC_STATUS_UPDATE))(self._bei_app)
-            bot = Bot(konto, haken)
-            halt = threading.Event()
-            threading.Thread(target=self._erinnern_schleife, args=(konto, halt), daemon=True,
-                             name="erinnern").start()
-            if self.besitzer.gekoppelt:
-                log.info("Mit Besitzer gekoppelt (Kontakt %s).", self.besitzer.kontakt_id)
-                self._einladung_entfernen()
-            else:
-                self._einladung_zeigen(konto)
-            bot.run_forever()
+        self.kanal.starten(self)

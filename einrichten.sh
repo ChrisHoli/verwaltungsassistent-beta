@@ -27,6 +27,14 @@ if [ ! -s .env.neu ]; then rm -f .env.neu; echo "Nichts geändert."; exit 1; fi
 if [ -s .env ]; then cp .env ".env.bak-$(date +%Y%m%d-%H%M%S)"; fi
 mv .env.neu .env
 
+# Signal: eigener Dienst, einmal mit dem Handy verbinden
+if grep -q '^MOMO_MESSENGER=signal' .env; then
+  $D compose up -d signal </dev/null
+  if ! $D compose run --rm --no-deps $TTY momo python -m tools.signal_verbinden; then
+    echo "Signal ist noch nicht verbunden. Momo startet trotzdem; später ./einrichten.sh noch einmal."
+  fi
+fi
+
 # Claude-Abo braucht Claude Code im Abbild (MIT_CLAUDE=1 steht dann in .env)
 if grep -q '^MIT_CLAUDE=1' .env; then echo "Baue mit Claude Code …"; $D compose build -q </dev/null; fi
 

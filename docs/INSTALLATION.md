@@ -32,9 +32,21 @@ Jeden Zugang prüft er sofort:
 
 Klappt etwas nicht, sagt er, woran es liegt. Dann gibst du die Angaben neu ein, übernimmst sie trotzdem oder brichst ab. Bei Abbruch bleibt alles, wie es war.
 
-Am Ende schreibt er die Datei `.env`, startet Momo und zeigt den **Einladungs-QR** im Terminal. Zum Ausdrucken liegt er als `einladung.pdf` im Momo-Ordner bereit, mit drei Schritten in großer Schrift. Das Blatt gibst du der Person. Sie installiert Delta Chat, scannt den Code und schreibt „Hallo“. Wer zuerst schreibt, wird Besitzer. Alle anderen ignoriert Momo.
+Am Ende schreibt er die Datei `.env`, startet Momo und zeigt den **Einladungs-QR** im Terminal. Zum Ausdrucken liegt er als `einladung.pdf` im Momo-Ordner bereit, mit drei Schritten in großer Schrift. Das Blatt gibst du der Person. Sie installiert den Messenger, scannt den Code und schreibt „Hallo“ (bei Telegram: „Starten“). Wer zuerst schreibt, wird Besitzer. Alle anderen ignoriert Momo.
 
 Passwörter und Schlüssel stehen nur in `.env` auf diesem Rechner. Die Datei kann nur ihr Besitzer lesen. Sie gehört nie in einen Chat oder ins Repo.
+
+## Welcher Messenger?
+
+| Wahl | Gut | Bedenken |
+|---|---|---|
+| **Delta Chat** (empfohlen) | verschlüsselt, keine Telefonnummer, Übersicht als Mini-App im Chat, löscht den Chat nach 30 Tagen auf beiden Seiten | die Person muss eine neue App lernen |
+| Signal | verschlüsselt, viele kennen es | Momo braucht eine eigene Handynummer (z. B. Prepaid-Karte); auf dem Handy mit dieser Nummer wird Momo als „verknüpftes Gerät“ hinzugefügt – der Assistent zeigt den Code. Übersicht als Text statt Mini-App |
+| Telegram | verbreitet, in fünf Minuten eingerichtet (@BotFather → /newbot) | **Telegram kann mitlesen**, auch die Fotos der Briefe. Übersicht als Text |
+
+WhatsApp geht nicht: Meta lässt Programme nur über die Business-Schnittstelle zu. Dafür braucht es ein Firmenkonto, eine eigene Nummer und einen Server, der aus dem Internet erreichbar ist; Erinnerungen kosten Geld und brauchen vorab genehmigte Vorlagen. Inoffizielle Wege verstoßen gegen die Regeln von WhatsApp, die Nummer kann gesperrt werden.
+
+Bei Signal liegen die Schlüssel im Docker-Volume `signal` – beim Sichern mitnehmen.
 
 ## Welche KI?
 

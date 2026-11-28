@@ -13,9 +13,27 @@ services:
     # Für Ollama auf demselben Rechner: Adresse http://host.docker.internal:11434/v1
     extra_hosts:
       - host.docker.internal:host-gateway
-    # Kein Port nach außen: Momo spricht nur über Delta Chat.
+    # Kein Port nach außen: Momo spricht nur über den Messenger.
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     mem_limit: 2g  # Whisper small braucht beim Zuhören etwa 700 MB
+    depends_on:
+      signal:
+        condition: service_started
+        required: false
+
+  # Nur für MOMO_MESSENGER=signal (COMPOSE_PROFILES=signal in .env, setzt der Einrichtungsassistent).
+  # Signal-Schlüssel liegen im Docker-Volume „signal“ (mitsichern!); nur im internen Netz, kein Port nach außen.
+  signal:
+    image: bbernhard/signal-cli-rest-api:0.102
+    profiles: [signal]
+    restart: unless-stopped
+    environment:
+      MODE: normal
+    volumes:
+      - signal:/home/.local/share/signal-cli
+
+volumes:
+  signal:

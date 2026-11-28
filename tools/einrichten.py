@@ -61,8 +61,16 @@ POSTFAECHER = {
                     "Microsoft lässt Programme oft nicht mehr mit Passwort hinein; dann ein anderes Postfach nehmen"),
 }
 
+MESSENGER = [
+    ("deltachat", "Delta Chat – empfohlen: verschlüsselt, ohne Telefonnummer, mit Übersicht als Mini-App im Chat"),
+    ("signal", "Signal – verschlüsselt; Momo braucht eine eigene Handynummer"),
+    ("telegram", "Telegram – verbreitet und schnell eingerichtet; Telegram kann Briefe und Fotos mitlesen"),
+]
+WHATSAPP = ("WhatsApp geht noch nicht: Dafür verlangt Meta ein Firmenkonto, eine eigene Nummer und einen Server, "
+            "der aus dem Internet erreichbar ist. Erinnerungen kosten dort Geld und brauchen genehmigte Vorlagen.")
+
 # Diese Einstellungen gehören zu Momo und werden übernommen; alles andere aus der Umgebung nicht
-EIGENE = re.compile(r"^(MOMO_|RCLONE_CONFIG_|MISTRAL_|OPENAI_API_KEY$|GEMINI_API_KEY$|ANTHROPIC_API_KEY$|"
+EIGENE = re.compile(r"^(MOMO_|COMPOSE_PROFILES$|RCLONE_CONFIG_|MISTRAL_|OPENAI_API_KEY$|GEMINI_API_KEY$|ANTHROPIC_API_KEY$|"
                     r"OPENROUTER_API_KEY$|GROQ_API_KEY$|CLAUDE_CODE_OAUTH_TOKEN$|MIT_CLAUDE$)")
 GEHEIM = re.compile(r"(PASSWORT|PASS|KEY|SCHLUESSEL|TOKEN)$")
 NICHT_UEBERNEHMEN = {"MOMO_DATEN", "MOMO_STIMME"}  # aus dem Abbild, nicht aus der .env
@@ -77,7 +85,10 @@ def verstaendlich(e: Exception) -> str:
     roh = str(e)[:200]
     klein = roh.lower()
     art = getattr(e, "art", "")
-    if art == "anmeldung" or "invalid api key" in klein:
+    if klein.startswith("getme:"):
+        satz = ("Der Zugangsschlüssel wird nicht angenommen. Bitte genau so kopieren, wie BotFather ihn geschickt hat."
+                if ("401" in klein or "404" in klein) else "Telegram ist gerade nicht erreichbar.")
+    elif art == "anmeldung" or "invalid api key" in klein:
         satz = "Der Schlüssel wird nicht angenommen. Ist er vollständig kopiert?"
     elif art == "limit":
         satz = "Der Zugang ist gesperrt oder das Guthaben ist leer."
@@ -109,8 +120,9 @@ def _wert(v: str) -> str:
 
 
 ABSCHNITTE = [
-    ("Momo", ["MOMO_NAME", "MOMO_BETREIBER", "MOMO_CHATMAIL_QR", "MOMO_BESITZER_ADRESSEN", "MOMO_VORLESEN",
-              "MOMO_WHISPER", "MOMO_AUFHEBEN_TAGE", "MOMO_ABSENDER"]),
+    ("Messenger", ["MOMO_MESSENGER", "MOMO_CHATMAIL_QR", "MOMO_TELEGRAM_TOKEN", "MOMO_SIGNAL_NUMMER", "MOMO_SIGNAL_API",
+                   "MOMO_BESITZER_ADRESSEN", "COMPOSE_PROFILES"]),
+    ("Momo", ["MOMO_NAME", "MOMO_BETREIBER", "MOMO_VORLESEN", "MOMO_WHISPER", "MOMO_AUFHEBEN_TAGE", "MOMO_ABSENDER"]),
     ("KI (nur Text geht an die KI, nie Fotos)", ["MOMO_KI", "MOMO_KI_MODELL", "MOMO_KI_ADRESSE",
                                                  "MOMO_KI_SCHLUESSEL", "MOMO_KI_BEFEHL", "MOMO_KI_AUFWAND",
                                                  "MISTRAL_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
@@ -156,6 +168,21 @@ def nextcloud_adresse(basis: str, benutzer: str) -> str:
 
 
 # ---------------------------------------------------------------- Prüfungen (nichts wird verschickt)
+
+def messenger_pruefen(werte: dict) -> str:
+    m = werte.get("MOMO_MESSENGER", "deltachat")
+    if m == "telegram":
+        from momo.kanal.telegram import Api
+
+        ich = Api(werte.get("MOMO_TELEGRAM_TOKEN", ""))("getMe")
+        return f"Telegram-Bot @{ich.get('username')} gefunden"
+    if m == "signal":
+        nummer = werte.get("MOMO_SIGNAL_NUMMER", "")
+        if not re.fullmatch(r"\+\d{8,15}", nummer):
+            raise ValueError("Die Nummer braucht die Form +49151… (mit Ländervorwahl, ohne Leerzeichen)")
+        return "Nummer sieht gut aus. Verbunden wird gleich nach dem Speichern"
+    return "Delta Chat braucht nichts weiter"
+
 
 def ki_pruefen(werte: dict) -> str:
     from momo.ki import Nachricht, anbieter_waehlen
@@ -270,8 +297,44 @@ def _pruefen_bis_ok(f: Frager, name: str, pruefung, werte: dict, nochmal) -> Non
         nochmal()
 
 
+def nummer_lesbar(t: str) -> str:
+    """„0151 123 456“ → „+49151123456“."""
+    t = re.sub(r"[\s/()-]", "", t or "")
+    if t.startswith("00"):
+        t = "+" + t[2:]
+    elif t.startswith("0"):
+        t = "+49" + t[1:]
+    return t
+
+
+def messenger_fragen(f: Frager, w: dict) -> None:
+    f.aus("\n── 1. Welcher Messenger? ──────────────────────────────────")
+    f.aus("Darüber schreibt die Person mit Momo.")
+    m = f.wahl("", MESSENGER, w.get("MOMO_MESSENGER") or "deltachat")
+    f.aus(f"  ({WHATSAPP})")
+    if m != (w.get("MOMO_MESSENGER") or "deltachat"):
+        w.pop("MOMO_BESITZER_ADRESSEN", None)  # Adressen gelten nur für einen Messenger
+    w["MOMO_MESSENGER"] = m
+    if m != "signal" and w.get("COMPOSE_PROFILES") == "signal":
+        w.pop("COMPOSE_PROFILES")
+    if m == "telegram":
+        f.aus("  In Telegram @BotFather öffnen, /newbot schicken, Namen wählen (z. B. „Momo für Max“).")
+        f.aus("  BotFather antwortet mit einem Zugangsschlüssel (Zahlen, Doppelpunkt, Buchstaben).")
+        w["MOMO_TELEGRAM_TOKEN"] = f.geheim("Zugangsschlüssel", w.get("MOMO_TELEGRAM_TOKEN", ""))
+    elif m == "signal":
+        f.aus("  Momo braucht eine eigene Nummer (z. B. eine Prepaid-Karte). Auf einem Handy mit dieser Nummer")
+        f.aus("  Signal einrichten. Gleich nach dem Speichern zeigt der Assistent einen Code: Den scannst du auf")
+        f.aus("  diesem Handy unter Einstellungen → Verknüpfte Geräte.")
+        w["MOMO_SIGNAL_NUMMER"] = nummer_lesbar(f.frage("Signal-Nummer von Momo", w.get("MOMO_SIGNAL_NUMMER", ""),
+                                                        pflicht=True))
+        f.aus("  Damit niemand anderes Momo übernimmt: die Handynummer der Person, die Momo nutzt.")
+        person = f.frage("Ihre Nummer (leer = wer zuerst schreibt)", w.get("MOMO_BESITZER_ADRESSEN", ""))
+        w["MOMO_BESITZER_ADRESSEN"] = nummer_lesbar(person) if person else ""
+        w["COMPOSE_PROFILES"] = "signal"
+
+
 def ki_fragen(f: Frager, w: dict) -> None:
-    f.aus("\n── 1. Welche KI? ──────────────────────────────────────────")
+    f.aus("\n── 2. Welche KI? ──────────────────────────────────────────")
     f.aus("Die KI erklärt Briefe und schreibt Antworten. Sie bekommt nur Text, nie Fotos.")
     vorher = w.get("MOMO_KI", "") or "mistral"
     if vorher in ("openrouter", "groq"):
@@ -314,7 +377,7 @@ def ki_fragen(f: Frager, w: dict) -> None:
 
 
 def ablage_fragen(f: Frager, w: dict) -> None:
-    f.aus("\n── 2. Wo sollen die Briefe liegen? ───────────────────────")
+    f.aus("\n── 3. Wo sollen die Briefe liegen? ───────────────────────")
     vorher = w.get("MOMO_ABLAGE", "ordner")
     ziel = w.get("MOMO_ABLAGE_ZIEL", "")
     vorgabe = "ordner" if vorher == "ordner" else ("nextcloud" if ziel.lower().startswith("nextcloud:") else "rclone")
@@ -355,7 +418,7 @@ def ablage_fragen(f: Frager, w: dict) -> None:
 
 
 def mail_fragen(f: Frager, w: dict) -> None:
-    f.aus("\n── 3. E-Mail (freiwillig) ────────────────────────────────")
+    f.aus("\n── 4. E-Mail (freiwillig) ────────────────────────────────")
     f.aus("Momo kann fertige Antwortbriefe als E-Mail mit PDF bei den Entwürfen ins Postfach legen.")
     if not f.ja("Postfach einrichten?", vorgabe=bool(w.get("MOMO_MAIL_ADRESSE"))):
         for k in ("MOMO_MAIL_ADRESSE", "MOMO_MAIL_PASSWORT", "MOMO_MAIL_IMAP", "MOMO_MAIL_SMTP", "MOMO_MAIL_SENDEN"):
@@ -379,7 +442,7 @@ def mail_fragen(f: Frager, w: dict) -> None:
 
 
 def sonstiges_fragen(f: Frager, w: dict) -> None:
-    f.aus("\n── 4. Momo selbst ────────────────────────────────────────")
+    f.aus("\n── 5. Momo selbst ────────────────────────────────────────")
     w["MOMO_NAME"] = f.frage("Name im Chat", w.get("MOMO_NAME") or "Momo")
     w["MOMO_BETREIBER"] = f.frage("Wer betreibt Momo? (steht im Datenschutz-Hinweis, z. B. dein Vorname)",
                                   w.get("MOMO_BETREIBER", ""), pflicht=True)
@@ -398,6 +461,9 @@ def uebersicht(w: dict) -> list[str]:
 
 def ablauf(f: Frager, w: dict, pruefen=True) -> dict:
     f.aus("Momo einrichten. Enter übernimmt den Wert in [Klammern]. Strg+C bricht ab, dann bleibt alles, wie es war.")
+    messenger_fragen(f, w)
+    if pruefen:
+        _pruefen_bis_ok(f, "den Messenger", messenger_pruefen, w, lambda: messenger_fragen(f, w))
     ki_fragen(f, w)
     if pruefen:
         _pruefen_bis_ok(f, "die KI", ki_pruefen, w, lambda: ki_fragen(f, w))
@@ -424,8 +490,10 @@ def main(argv=None) -> int:
     p.add_argument("--ohne-pruefung", action="store_true", help="Zugänge nicht prüfen")
     a = p.parse_args(argv)
     f = Frager()
+    vorher = bisherige_werte(dict(os.environ))
+    alter_messenger = vorher.get("MOMO_MESSENGER") or "deltachat"
     try:
-        werte = ablauf(f, bisherige_werte(dict(os.environ)), pruefen=not a.ohne_pruefung)
+        werte = ablauf(f, dict(vorher), pruefen=not a.ohne_pruefung)
     except (Abbruch, KeyboardInterrupt):
         f.aus("\nAbgebrochen. Nichts wurde geändert.")
         return 1
@@ -435,6 +503,12 @@ def main(argv=None) -> int:
         ziel.write_text(env_text(werte))
     finally:
         os.umask(alt)
+    if werte.get("MOMO_MESSENGER", "deltachat") != alter_messenger:
+        # Die Kopplung gehört zum alten Messenger: neu einladen
+        daten = Path(os.environ.get("MOMO_DATEN", "/daten"))
+        for name in ("besitzer.json", "einladung.txt", "einladung.svg", "einladung.pdf"):
+            (daten / name).unlink(missing_ok=True)
+        f.aus("Neuer Messenger: Die Person bekommt eine neue Einladung.")
     f.aus("\nGespeichert.")
     return 0
 

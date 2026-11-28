@@ -2,7 +2,7 @@
 
 Ein Delta-Chat-Bot, der hilft, Briefe und Dokumente aller Art zu verstehen, zu sortieren und zu beantworten – für Menschen, denen Lesen und Schreiben schwerfällt. Brief fotografieren oder eine Sprachnachricht schicken; Momo erklärt in einfachen Worten, liest vor, merkt sich Fristen und macht aus Gesprochenem einen korrekten Antwortbrief.
 
-Nutzer brauchen nur Delta Chat (Android, iPhone, Computer). Der Bot läuft als Docker-Container auf einem Server, Raspberry Pi oder Computer; KI (jede: Mistral, OpenAI, Gemini, Claude, lokal mit Ollama, jeder OpenAI-kompatible Dienst oder ein eigenes Programm) und Speicherort (Google Drive, iCloud, Nextcloud, Ordner) sind wählbar.
+Nutzer brauchen nur einen Messenger: Delta Chat (empfohlen), Signal oder Telegram. Der Bot läuft als Docker-Container auf einem Server, Raspberry Pi oder Computer; KI (jede: Mistral, OpenAI, Gemini, Claude, lokal mit Ollama, jeder OpenAI-kompatible Dienst oder ein eigenes Programm) und Speicherort (Google Drive, iCloud, Nextcloud, Ordner) sind wählbar.
 
 - `docs/ANPASSUNG.md` – Bauplan, Schritte V0–V14
 - `docs/quelle/` – ursprüngliches Konzept (Version 1.0)
@@ -15,7 +15,7 @@ git clone https://github.com/ChrisHoli/verwaltungsassistent-beta.git momo && cd 
 ./einrichten.sh
 ```
 
-Der Assistent fragt KI, Speicherort und Postfach ab, prüft jeden Zugang, schreibt `.env`, startet Momo und zeigt den Einladungs-QR (auch als `einladung.pdf` zum Ausdrucken). Alles Weitere: `docs/INSTALLATION.md`.
+Der Assistent fragt Messenger, KI, Speicherort und Postfach ab, prüft jeden Zugang, schreibt `.env`, startet Momo und zeigt den Einladungs-QR (auch als `einladung.pdf` zum Ausdrucken). Alles Weitere: `docs/INSTALLATION.md`.
 
 ## Entwickeln
 

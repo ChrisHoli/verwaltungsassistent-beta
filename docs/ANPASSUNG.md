@@ -127,6 +127,18 @@ Christian: „… die Möglichkeit, dass Momo einen Emailentwurf direkt in einem
 - **Sicherung:** Zu sichern sind der Datenordner `daten/` (darin das Delta-Chat-Konto mit Momos Schlüssel: ohne ihn muss neu gekoppelt werden) und der Speicherort. Wiederherstellen: Container stoppen, `daten/` zurückkopieren, starten. Auf holiwork-alpha erfasst die nächtliche restic-Sicherung `/home/christian` (also `~/momo/daten`) und die Nextcloud; die Wiederherstellung wurde am 28.11.2026 geprobt (Datenbank heil, Schlüssel vorhanden).
 - Vor dem Probelauf (V12) mit echten Briefen: Einverständnis der Person zu diesem Hinweis einholen.
 
+## Messenger wählen (seit 28.11.2026)
+
+Christian: „Ach, es wäre gut, wenn der messanger auch noch gewählt werden darf am Anfang.“ – „Deltachat, Telegram, signal, whatsapp?“
+
+`MOMO_MESSENGER` = `deltachat` (Standard) | `signal` | `telegram`, erste Frage im Einrichtungsassistenten. Jeder Messenger ist ein Kanal in `momo/kanal/` (gemeinsame Form: `Eingang` rein, Chat-Objekt mit `send_text`/`send_message` raus); der Bote kennt keinen Messenger mehr.
+- **Delta Chat:** wie bisher, mit Mini-App und Löschfrist auf beiden Seiten.
+- **Signal:** über `signal-cli-rest-api` (Dienst `signal`, Profil `signal`, Volume `signal`, kein Port nach außen). Momo braucht eine eigene Nummer und wird als verknüpftes Gerät angemeldet (`tools/signal_verbinden.py` zeigt den Code im Terminal). Besitzer: die eingetragene Nummer der Person, sonst wer zuerst schreibt. Nachrichten-IDs sind Zeitstempel; Zitate funktionieren.
+- **Telegram:** Bot-Schnittstelle mit Long-Polling (kein Port nach außen). Einladung `t.me/<bot>?start=<Code>`, nur mit dem Code wird man Besitzer. Sprachnachrichten werden zu OGG/Opus umgewandelt. Der Datenschutz-Hinweis sagt ehrlich: „Telegram kann mitlesen.“ httpx protokolliert keine Adressen (der Schlüssel steht darin).
+- Ohne Mini-App (Signal, Telegram) antwortet Momo auf „Zeig mir meine Übersicht“ mit Text. „Lösch alles von mir“ bittet dort, den Chat selbst zu löschen.
+- **WhatsApp nicht:** nur über die Business-Schnittstelle von Meta (Firmenkonto, öffentlich erreichbarer Server gegen Grundregel „kein Port nach außen“, Erinnerungen außerhalb von 24 Stunden nur mit genehmigten, kostenpflichtigen Vorlagen). Inoffizielle Bibliotheken verstoßen gegen die Nutzungsbedingungen.
+- Wechsel des Messengers im Assistenten löscht die alte Kopplung; die Person bekommt eine neue Einladung. Briefe, Fristen und Gemerktes bleiben.
+
 ## Freie Fragen (seit 28.11.2026)
 
 Alles, was kein fester Wunsch ist (Frist ja/nein, Fakten, E-Mail, Antwortbrief, vorlesen, Übersicht), beantwortet die KI frei – zu Briefen und zum Alltag. Dazu bekommt sie den Brief, um den es gerade geht (genannter Absender, sonst der neueste) im Wortlaut, höchstens 12 000 Zeichen, und eine Liste aller Briefe mit Fristen (`momo/unterlagen.py`), als Daten markiert. Kontonummern und Beträge in der Antwort prüft Momo gegen den Brief; was dort nicht steht, bekommt den Zusatz „habe ich so nicht im Brief gefunden“. Kontonummern liest er Zeichen für Zeichen vor. Ein offener Antwortbrief ändert sich nur noch durch eine Antwort auf die Vorlage oder einen Satz, der keine Frage ist, und wird verworfen, sobald ein neuer Brief kommt (Fehler aus Christians Test am 28.11.: „Wo soll ich das Geld hinschicken“ landete im alten Antwortbrief).

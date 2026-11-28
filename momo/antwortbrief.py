@@ -113,7 +113,9 @@ def _ergebnis(roh: dict | None, brieftext: str, quellen: list[str], fallback_ans
         raise ValueError("kein Brieftext von der KI")
     text = re.sub(r"\n{3,}", "\n\n", str(roh["text"]).strip())[:3000]
     anschrift = [re.sub(r"\s+", " ", str(z)).strip() for z in (roh.get("anschrift") or []) if str(z).strip()][:6]
-    sicher = bool(anschrift) and all(steht_im_text(z, brieftext, 0.9) for z in anschrift)
+    # Sicher nur mit Postleitzahl und Ort – sonst kommt der Brief nicht an
+    sicher = bool(anschrift) and any(re.search(r"\b\d{5}\b", z) for z in anschrift) \
+        and all(steht_im_text(z, brieftext, 0.9) for z in anschrift)
     rueckfrage = roh.get("rueckfrage")
     return {
         "betreff": re.sub(r"\s+", " ", str(roh.get("betreff") or "Ihr Schreiben")).strip()[:120],

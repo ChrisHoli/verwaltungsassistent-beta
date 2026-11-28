@@ -100,6 +100,7 @@ class Vorgaenge:
             "aktenzeichen": wert("aktenzeichen"), "akte": akte_von(wert("aktenzeichen")),
             "dokumenttyp": wert("dokumenttyp"), "was_ist_das": e.get("was_ist_das"),
             "was_tun": wert("handlungsbedarf"), "fristen": fristen, "fragen": {},
+            "verdacht": bool(e.get("verdacht_manipulation")),
         }
         with self._sperre:
             self.daten["briefe"].append(brief)

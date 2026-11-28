@@ -296,6 +296,10 @@ class Bote:
             if nummer is None:
                 return self._gemerkt(text, Antwort(
                     "Schick mir zuerst ein Foto von dem Brief, auf den du antworten willst."))
+            if self.vorgaenge.daten["briefe"][nummer].get("verdacht"):
+                return self._gemerkt(text, Antwort(
+                    "Bei diesem Brief stimmt etwas nicht. Darauf schreibe ich keine Antwort. Zeig ihn bitte zuerst "
+                    "einem Menschen, dem du vertraust, oder einer Beratungsstelle. Und überweise kein Geld."))
             inhalt = text if len(text.split()) > 6 and re.search(r"\b(dass|weil|ob)\b", text, re.I) else ""
             if not self.entwuerfe.absender:
                 self.entwuerfe.warten("absender", nummer, inhalt)

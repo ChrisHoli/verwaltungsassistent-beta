@@ -48,6 +48,12 @@ def test_anschrift_nur_wenn_im_brief():
     e = ab._ergebnis({"text": "Hallo", "anschrift": ["Jobcenter Musterstadt", "Erfundene Straße 9"]}, SEITE,
                      [SEITE], ["Jobcenter Musterstadt"])
     assert not e["anschrift_sicher"] and e["anschrift"] == ["Jobcenter Musterstadt"]
+    seite1 = BRIEFE[0]["seiten"][0]
+    e = ab._ergebnis({"text": "x", "anschrift": ["Jobcenter Musterstadt"]}, seite1, [seite1], [])
+    assert not e["anschrift_sicher"]  # ohne Postleitzahl nicht sicher
+    e = ab._ergebnis({"text": "x", "anschrift": ["Jobcenter Musterstadt", "Hauptstraße 1", "12345 Musterstadt"]},
+                     seite1, [seite1], [])
+    assert e["anschrift_sicher"]
     e = ab._ergebnis({"text": "Ich zahle 500 Euro."}, SEITE, ["ich zahle", SEITE], [])
     assert e["zahlen_pruefen"]
 
@@ -90,3 +96,10 @@ def test_kein_brief_und_abbrechen(tmp_path):
     b.entwuerfe.absender = ["Max", "Weg 1", "12345 Ort"]
     assert "was drinstehen soll" in b.antworten_auf("text", "Ich will dem Jobcenter antworten", False).text
     assert "keinen Brief" in b.antworten_auf("text", "abbrechen", False).text
+
+
+def test_kein_antwortbrief_bei_verdacht(tmp_path):
+    b = _bote(tmp_path)
+    b.vorgaenge.brief_eintragen("Briefe/a", dict(BRIEF, verdacht_manipulation=True))
+    b.entwuerfe.absender = ["Max", "Weg 1", "12345 Ort"]
+    assert "stimmt etwas nicht" in b.antworten_auf("text", "Schreib denen dass ich das Geld überweise", False).text

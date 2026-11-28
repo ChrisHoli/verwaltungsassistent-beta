@@ -39,6 +39,8 @@ class Antwort:
     vorlesen: bool = True
     sprechtext: str | None = None  # wenn das Vorlesen anders klingen soll als der Text
     immer_vorlesen: bool = False  # auch wenn „nur Text“ eingestellt ist (z. B. „Lies mir das vor“)
+    datei: str | None = None  # z. B. der fertige Antwortbrief als PDF
+    vorlage: bool = False  # Antwortbrief-Vorlage: ihre Nachrichten-ID wird für die Freigabe gemerkt
 
     @property
     def zum_vorlesen(self) -> str:

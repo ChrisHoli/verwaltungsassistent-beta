@@ -4,6 +4,8 @@ Muster aus einer bewährten Delta-Chat-Brücke übernommen. Im Log nie Nachricht
 """
 
 import logging
+import re
+from datetime import datetime
 import threading
 import time
 from pathlib import Path
@@ -15,8 +17,10 @@ from .ablage import AblageFehler
 from . import saetze
 from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT, KEIN_BRIEF,
                         NICHT_VERSTANDEN, NOCH_NICHT, SPRACHE_AN, SPRACHE_AUS, Antwort)
+from . import antwortbrief as ab
 from .einstellungen import Einstellungen
-from .vorgaenge import ERLEDIGT, ERLEDIGT_ZITAT, JA, NEIN, Vorgaenge, erinnerung_text, frage_text, ueberblick_text
+from .woerter import frage_nach_wort
+from .vorgaenge import ZEITZONE, ERLEDIGT, ERLEDIGT_ZITAT, JA, NEIN, Vorgaenge, erinnerung_text, frage_text, ueberblick_text
 from .zuhoeren import Ohr, ZuhoerFehler
 from .briefe import Briefablage, endung_fuer
 from .aufnahme import SCHLECHTES_FOTO, aufnehmen, datum_lesbar
@@ -57,6 +61,8 @@ class Bote:
         self.ohr = ohr
         self.einstellungen = Einstellungen(konfig.daten, konfig.vorlesen)
         self.vorgaenge = Vorgaenge(konfig.daten)
+        self.entwuerfe = ab.Entwuerfe(konfig.daten, konfig.absender)
+        self._chat = None  # Chat der laufenden Nachricht, für Zwischenmeldungen und das PDF
         self.gespraech = gespraech
         self.briefe = briefe
         self._lese_uhr: threading.Timer | None = None
@@ -84,6 +90,7 @@ class Bote:
             self._einladung_entfernen()
         log.info("Nachricht vom Besitzer: Art %s", art)
         self.vorgaenge.chat_merken(s.chat.id)
+        self._chat = s.chat
         zitat = getattr(s, "quote", None) or {}
         zitiert = zitat.get("message_id") if zitat.get("kind") == "WithMessage" else None
         if art in ("bild", "datei") and s.file:
@@ -120,6 +127,15 @@ class Bote:
             if antwort is not None:
                 return self._gemerkt(text, antwort)
         wunsch = saetze.erkennen(text) if art == "text" and not neu else None
+        if art == "text" and not neu:
+            aktiv = bool(self.entwuerfe.zustand())
+            entwurf = self.entwuerfe.entwurf() if aktiv else None
+            if entwurf is not None and wunsch == saetze.NOCHMAL:
+                return self._gemerkt(text, self._vorlage_schicken(entwurf))
+            if (aktiv and wunsch not in (saetze.SPRACHE_AN, saetze.SPRACHE_AUS)) or ab.ist_briefwunsch(text):
+                antwort = self._antwortbrief(text, zitiert)
+                if antwort is not None:
+                    return antwort
         if wunsch in (saetze.WOCHE, saetze.FRISTEN):
             tage = 7 if wunsch == saetze.WOCHE else None
             return self._gemerkt(text, Antwort(ueberblick_text(self.vorgaenge.kommend(tage), tage)))
@@ -178,6 +194,120 @@ class Bote:
         if f["art"] == "wiedervorlage":
             return Antwort(f"Gut. Ich erinnere dich am {tag} an den Widerspruch.")
         return Antwort(f"Gut. Ich erinnere dich an den {tag}.")
+
+    # --- Antwortbriefe (V9) ---
+    def _brieftext(self, brief: dict) -> str:
+        pfade = sorted(p for p in self.briefe.ablage.liste(f"{brief['vorgang']}/text") if p.endswith(".txt"))
+        return "\n\n".join(f"=== Seite {i} ===\n" + self.briefe.ablage.lesen(p).decode(errors="replace")
+                            for i, p in enumerate(pfade, start=1))
+
+    def _welcher_brief(self, text: str) -> int | None:
+        briefe = self.vorgaenge.daten["briefe"]
+        klein = text.lower()
+        for i in range(len(briefe) - 1, -1, -1):
+            woerter = [w for w in re.findall(r"\w{4,}", (briefe[i].get("absender") or "").lower())]
+            if any(w in klein for w in woerter):
+                return i
+        return len(briefe) - 1 if briefe else None
+
+    def _zwischen(self, text: str) -> None:
+        if self._chat is not None:
+            try:
+                self._chat.send_text(text)
+            except Exception:
+                log.warning("Zwischenmeldung nicht gesendet")
+
+    def _vorlage_schicken(self, e: ab.Entwurf) -> Antwort:
+        brief = self.vorgaenge.daten["briefe"][e.brief]
+        text, sprechen = ab.vorlage(e, ab.teile(e, brief, self.entwuerfe.absender))
+        self.entwuerfe.merken(e)
+        return Antwort(text, sprechtext=sprechen, vorlage=True)
+
+    def _entwerfen(self, nummer: int, wunsch: str, entwurf: ab.Entwurf | None = None) -> Antwort:
+        brief = self.vorgaenge.daten["briefe"][nummer]
+        self._zwischen("Ich schreibe deinen Brief. Das dauert einen Moment.")
+        try:
+            brieftext = self._brieftext(brief)
+            e = (ab.aendern(self.gespraech.ki, entwurf, brief, brieftext, wunsch) if entwurf
+                 else ab.entwerfen(self.gespraech.ki, brief, brieftext, wunsch, nummer))
+        except KiFehler as f:
+            log.error("KI beim Briefschreiben: %s", f.art)
+            return Antwort(FEHLER.get(f.art, FEHLER["sonstig"]))
+        except (ValueError, AblageFehler) as f:
+            log.error("Brief schreiben fehlgeschlagen: %s", str(f)[:150])
+            return Antwort("Das hat nicht geklappt. Sag mir bitte noch einmal, was im Brief stehen soll.")
+        log.info("Antwortbrief entworfen (%s Zeichen, Anschrift sicher: %s)", len(e.text), e.anschrift_sicher)
+        return self._vorlage_schicken(e)
+
+    def _pdf_machen(self, e: ab.Entwurf) -> Antwort:
+        brief = self.vorgaenge.daten["briefe"][e.brief]
+        t = ab.teile(e, brief, self.entwuerfe.absender)
+        stempel = datetime.now(ZEITZONE).strftime("%Y-%m-%d_%H%M")
+        self.tmp.mkdir(parents=True, exist_ok=True)
+        datei = ab.pdf(t, self.tmp / f"Antwort-{stempel}.pdf")
+        try:
+            self.briefe.ablage.schreiben(f"{brief['vorgang']}/antwortbriefe/antwort-{stempel}.pdf", datei.read_bytes())
+        except AblageFehler as f:
+            log.warning("Antwortbrief nicht in der Ablage: %s", str(f)[:150])
+        self.entwuerfe.leeren()
+        log.info("Antwortbrief als PDF fertig")
+        hinweis = ("Hier ist dein Brief als PDF. Du kannst ihn ausdrucken, unterschreiben und abschicken. "
+                   "Oder du lädst ihn hoch oder schickst ihn per E-Mail. Ich verschicke nichts selbst.")
+        if not e.anschrift_sicher:
+            hinweis += " Denk daran: Die Adresse vom Amt musst du noch dazuschreiben."
+        return Antwort(hinweis, datei=str(datei))
+
+    def _antwortbrief(self, text: str, zitiert: int | None) -> Antwort | None:
+        """Alles rund um Antwortbriefe. None = nicht zuständig."""
+        z = self.entwuerfe.zustand()
+        if z.get("warte") == "absender":
+            zeilen = ab.absender_lesen(text)
+            if zeilen is None:
+                return self._gemerkt(text, Antwort(ab.ABSENDER_NOCHMAL))
+            self.entwuerfe.absender = zeilen
+            self.gespraech.merken("nutzer", text)
+            if z.get("wunsch"):
+                return self._entwerfen(z["brief"], z["wunsch"])
+            self.entwuerfe.warten("inhalt", z["brief"])
+            return Antwort("Danke. Jetzt sag mir, was im Brief stehen soll. Du kannst ganz normal sprechen.")
+        if z.get("warte") == "inhalt":
+            if ab.ABBRECHEN.match(text):
+                self.entwuerfe.leeren()
+                return self._gemerkt(text, Antwort("In Ordnung. Ich schreibe keinen Brief."))
+            self.gespraech.merken("nutzer", text)
+            return self._entwerfen(z["brief"], text)
+        entwurf = self.entwuerfe.entwurf()
+        if entwurf is not None:
+            if ab.FREIGABE.match(text):
+                if zitiert is None or zitiert != entwurf.vorlage_id:
+                    return self._gemerkt(text, Antwort(
+                        "Damit ich sicher weiß, welche Fassung du meinst: Antworte bitte direkt auf den Brief. "
+                        "Halte die Nachricht mit dem Brief gedrückt und tipp auf Antworten. Dann sag: passt."))
+                return self._gemerkt(text, self._pdf_machen(entwurf))
+            if ab.ABBRECHEN.match(text):
+                self.entwuerfe.leeren()
+                return self._gemerkt(text, Antwort("In Ordnung. Den Brief lasse ich weg."))
+            if zitiert == entwurf.vorlage_id or (zitiert is None and not text.rstrip().endswith("?")
+                                                  and frage_nach_wort(text) is None):
+                self.gespraech.merken("nutzer", text)
+                return self._entwerfen(entwurf.brief, text, entwurf)
+        if ab.ist_briefwunsch(text):
+            nummer = self._welcher_brief(text)
+            if nummer is None:
+                return self._gemerkt(text, Antwort(
+                    "Schick mir zuerst ein Foto von dem Brief, auf den du antworten willst."))
+            inhalt = text if len(text.split()) > 6 and re.search(r"\b(dass|weil|ob)\b", text, re.I) else ""
+            if not self.entwuerfe.absender:
+                self.entwuerfe.warten("absender", nummer, inhalt)
+                return self._gemerkt(text, Antwort(ab.ABSENDER_FRAGE))
+            if inhalt:
+                self.gespraech.merken("nutzer", text)
+                return self._entwerfen(nummer, inhalt)
+            self.entwuerfe.warten("inhalt", nummer)
+            absender = self.vorgaenge.daten["briefe"][nummer].get("absender") or "das Amt"
+            return self._gemerkt(text, Antwort(f"Gut. Ich schreibe eine Antwort an {absender}. Sag mir einfach, "
+                                               "was drinstehen soll. Du kannst ganz normal sprechen."))
+        return None
 
     def _uebersicht_ablegen(self) -> None:
         """Fristen als einfache Textdatei in den Speicherort, damit auch Helfer sie sehen."""
@@ -288,8 +418,17 @@ class Bote:
         if antwort.vorlesen and (antwort.immer_vorlesen or self.einstellungen.vorlesen == "immer"):
             datei = self.stimme.sprechen(antwort.zum_vorlesen, self.tmp)
         if datei:
-            return chat.send_message(text=antwort.text, file=str(datei), viewtype=ViewType.VOICE)
-        return chat.send_text(antwort.text)
+            nachricht = chat.send_message(text=antwort.text, file=str(datei), viewtype=ViewType.VOICE)
+        else:
+            nachricht = chat.send_text(antwort.text)
+        if antwort.datei:
+            chat.send_message(file=antwort.datei)
+        if antwort.vorlage and nachricht is not None:
+            e = self.entwuerfe.entwurf()
+            if e is not None:
+                e.vorlage_id = nachricht.id
+                self.entwuerfe.merken(e)
+        return nachricht
 
     # --- Start ---
     def _aufraeumen(self) -> None:

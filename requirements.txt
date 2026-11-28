@@ -4,3 +4,4 @@ piper-tts==1.8.0
 tzdata
 httpx>=0.28,<1
 faster-whisper>=1.1,<2
+reportlab>=4.2,<5

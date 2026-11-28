@@ -3,7 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 RCLONE_CONFIG=/daten/rclone.conf
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg rclone ca-certificates tesseract-ocr tesseract-ocr-deu poppler-utils \
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg rclone ca-certificates tesseract-ocr tesseract-ocr-deu poppler-utils fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

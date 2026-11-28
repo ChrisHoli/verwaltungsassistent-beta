@@ -127,6 +127,10 @@ Christian: „… die Möglichkeit, dass Momo einen Emailentwurf direkt in einem
 - **Sicherung:** Zu sichern sind der Datenordner `daten/` (darin das Delta-Chat-Konto mit Momos Schlüssel: ohne ihn muss neu gekoppelt werden) und der Speicherort. Wiederherstellen: Container stoppen, `daten/` zurückkopieren, starten. Auf holiwork-alpha erfasst die nächtliche restic-Sicherung `/home/christian` (also `~/momo/daten`) und die Nextcloud; die Wiederherstellung wurde am 28.11.2026 geprobt (Datenbank heil, Schlüssel vorhanden).
 - Vor dem Probelauf (V12) mit echten Briefen: Einverständnis der Person zu diesem Hinweis einholen.
 
+## Freie Fragen (seit 28.11.2026)
+
+Alles, was kein fester Wunsch ist (Frist ja/nein, Fakten, E-Mail, Antwortbrief, vorlesen, Übersicht), beantwortet die KI frei – zu Briefen und zum Alltag. Dazu bekommt sie den Brief, um den es gerade geht (genannter Absender, sonst der neueste) im Wortlaut, höchstens 12 000 Zeichen, und eine Liste aller Briefe mit Fristen (`momo/unterlagen.py`), als Daten markiert. Kontonummern und Beträge in der Antwort prüft Momo gegen den Brief; was dort nicht steht, bekommt den Zusatz „habe ich so nicht im Brief gefunden“. Kontonummern liest er Zeichen für Zeichen vor. Ein offener Antwortbrief ändert sich nur noch durch eine Antwort auf die Vorlage oder einen Satz, der keine Frage ist, und wird verworfen, sobald ein neuer Brief kommt (Fehler aus Christians Test am 28.11.: „Wo soll ich das Geld hinschicken“ landete im alten Antwortbrief).
+
 ## Kosten
 
 Delta Chat und chatmail kostenlos. KI: ChatGPT Go 8 €/Monat (falls der Abo-Weg klappt) oder API-Cent-Beträge. Speicher: vorhandene Cloud. Bot: vorhandener Server oder Raspberry Pi (einmalig ~80 €).

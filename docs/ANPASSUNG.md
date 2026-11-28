@@ -60,11 +60,14 @@ Delta Chat (Handy / Computer)
 
 ## KI wählen
 
-Eine Schnittstelle `KiAnbieter` (`momo/ki/`), Auswahl über `MOMO_KI` in der `.env`:
+**Jede KI lässt sich einhängen** (seit 28.11.2026). Eine Schnittstelle `KiAnbieter` (`momo/ki/`), Auswahl über `MOMO_KI` in der `.env`; Momo selbst kennt keinen Anbieter:
 
-1. **`mistral` – Mistral über die API (Hauptweg, seit 27.11.2026).** Französischer Anbieter, Verarbeitung in der EU, Schlüssel aus Mistral Studio, Abrechnung nach Verbrauch (Cent-Beträge). Training in der Konsole abschalten; auf Wunsch Zero Data Retention.
-2. **`claude-abo` – Claude über ein Abo** (Claude Code, `claude -p`, setup-token). Zum Testen durch den Betreiber. Claude Code läuft ohne Werkzeuge, Einstellungen und MCP. Bild mit `MIT_CLAUDE=1` bauen.
-3. Später möglich: weitere OpenAI-kompatible Adressen, lokale KI (Ollama), ChatGPT-Abo („Mit ChatGPT anmelden“, bisher nur Partner und Open-Source-Vorschau – zurückgestellt zugunsten Mistral).
+1. **OpenAI-kompatibel** (`momo/ki/offen.py`), das Format, das fast alle sprechen. Voreinstellungen: `mistral` (EU, Hauptweg für echte Briefe), `openai`, `gemini`, `openrouter`, `groq`, `ollama` (lokal). Für alles andere `openai-kompatibel` mit `MOMO_KI_ADRESSE` (LM Studio, vLLM, IONOS, Scaleway, eigene Server).
+2. **`anthropic`**: Claude über die API (`momo/ki/anthropic_api.py`, offizielles SDK, Standard `claude-opus-5-5`, Ersatzmodell bei Ablehnung serverseitig).
+3. **`befehl`**: jedes Programm, das Text über die Standardeingabe nimmt und über die Standardausgabe antwortet (`momo/ki/befehl.py`), z. B. `ollama run …` oder ein eigenes Skript.
+4. **`claude-abo`**: Claude Code mit Abo, nur zum Testen durch den Betreiber.
+
+Gemeinsame Einstellungen: `MOMO_KI_MODELL`, `MOMO_KI_SCHLUESSEL`, `MOMO_KI_ADRESSE` (Übersicht in `.env.example`). Für echte Briefe zählt der Datenschutz: Mistral (EU) oder eine lokale KI; US-Anbieter nur mit Auftragsverarbeitungsvertrag und Einverständnis.
 
 Nur der Text geht an die KI, keine Fotos. Momo merkt sich die letzten 12 Nachrichten (`daten/verlauf.json`). Ins Log kommen nur der Verbrauch (Tokens) und Fehlerarten, nie Inhalte. Fällt die KI aus, sagt Momo das in einfachen Worten.
 

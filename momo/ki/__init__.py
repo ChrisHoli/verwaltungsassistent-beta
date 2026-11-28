@@ -58,24 +58,58 @@ class KeineKi(KiAnbieter):
         raise KiNichtVerfuegbar("Keine KI eingerichtet (MOMO_KI=keine)")
 
 
+# Voreinstellungen für KIs mit OpenAI-kompatibler Schnittstelle:
+# name: (Adresse, übliche Umgebungsvariable für den Schlüssel, Standardmodell oder "", Schlüssel nötig)
+OFFENE_KIS = {
+    "mistral": ("https://api.mistral.ai/v1", "MISTRAL_API_KEY", "mistral-medium-latest", True),
+    "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY", "", True),
+    "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY", "", True),
+    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "", True),
+    "groq": ("https://api.groq.com/openai/v1", "GROQ_API_KEY", "", True),
+    "ollama": ("http://localhost:11434/v1", "", "", False),
+    "openai-kompatibel": ("", "", "", False),
+}
+ALLE_KIS = ("keine", *OFFENE_KIS, "anthropic", "claude-abo", "befehl")
+
+
 def anbieter_waehlen(name: str, umgebung: dict[str, str] | None = None) -> KiAnbieter:
+    """MOMO_KI wählt die KI. Gemeinsame Einstellungen: MOMO_KI_MODELL, MOMO_KI_SCHLUESSEL, MOMO_KI_ADRESSE."""
     import os
 
     u = os.environ if umgebung is None else umgebung
-    modell = u.get("MOMO_KI_MODELL", "").strip()
+    feld = lambda k: u.get(k, "").strip()  # noqa: E731
+    modell, schluessel, adresse = feld("MOMO_KI_MODELL"), feld("MOMO_KI_SCHLUESSEL"), feld("MOMO_KI_ADRESSE")
     if name in ("", "keine"):
         return KeineKi()
-    if name == "mistral":
-        from .mistral import Mistral
+    if name in OFFENE_KIS:
+        from .offen import OpenAiKompatibel
 
-        return Mistral(schluessel=u.get("MISTRAL_API_KEY", "").strip(),
-                       modell=modell or "mistral-medium-latest",
-                       adresse=u.get("MISTRAL_ADRESSE", "https://api.mistral.ai/v1").strip())
+        vorgabe_adresse, schluessel_var, vorgabe_modell, noetig = OFFENE_KIS[name]
+        if name == "mistral":
+            adresse = adresse or feld("MISTRAL_ADRESSE")
+        adresse = adresse or vorgabe_adresse
+        if not adresse:
+            raise ValueError(f"MOMO_KI={name} braucht MOMO_KI_ADRESSE (z. B. http://mein-server:8000/v1)")
+        temperatur = feld("MOMO_KI_TEMPERATUR")
+        return OpenAiKompatibel(
+            name=name, adresse=adresse, schluessel=schluessel or (feld(schluessel_var) if schluessel_var else ""),
+            modell=modell or vorgabe_modell, schluessel_noetig=noetig and not feld("MOMO_KI_OHNE_SCHLUESSEL"),
+            temperatur=float(temperatur) if temperatur else (0.3 if name == "mistral" else None),
+            laengen_feld="max_completion_tokens" if name == "openai" else "max_tokens")
+    if name == "anthropic":
+        from .anthropic_api import AnthropicApi
+
+        return AnthropicApi(schluessel=schluessel or feld("ANTHROPIC_API_KEY"),
+                            modell=modell or "claude-opus-5-5", aufwand=feld("MOMO_KI_AUFWAND") or "medium")
     if name == "claude-abo":
         from .claude_abo import ClaudeAbo
 
-        return ClaudeAbo(token=u.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip(),
+        return ClaudeAbo(token=feld("CLAUDE_CODE_OAUTH_TOKEN"),
                          modell=modell or "sonnet",
-                         befehl=u.get("MOMO_CLAUDE_BEFEHL", "claude").strip(),
-                         heim=u.get("MOMO_DATEN", "/daten") + "/claude")
-    raise ValueError(f"Unbekannte KI {name!r} (möglich: keine, mistral, claude-abo)")
+                         befehl=feld("MOMO_CLAUDE_BEFEHL") or "claude",
+                         heim=(u.get("MOMO_DATEN") or "/daten") + "/claude")
+    if name == "befehl":
+        from .befehl import Befehl
+
+        return Befehl(feld("MOMO_KI_BEFEHL"))
+    raise ValueError(f"Unbekannte KI {name!r} (möglich: {', '.join(ALLE_KIS)})")

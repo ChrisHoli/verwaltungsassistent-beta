@@ -34,6 +34,12 @@ class Einstellungen:
     def vorlesen(self, wert: str) -> None:
         self._schreiben(self.datei, {**self._lesen(self.datei), "vorlesen": wert})
 
+    def wert(self, name: str):
+        return self._lesen(self.datei).get(name)
+
+    def setzen(self, name: str, wert) -> None:
+        self._schreiben(self.datei, {**self._lesen(self.datei), name: wert})
+
     def brief_merken(self, antwort: Antwort) -> None:
         self._schreiben(self.brief_datei, {"text": antwort.text, "sprechtext": antwort.sprechtext})
 

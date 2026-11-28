@@ -19,6 +19,10 @@ class Ablage(ABC):
     def liste(self, ordner: str = "") -> list[str]: ...
 
     @abstractmethod
+    def loeschen(self, pfad: str) -> None:
+        """Ordner oder Datei samt Inhalt löschen. Fehlt er, ist das kein Fehler."""
+
+    @abstractmethod
     def verschieben(self, ordner: str, ziel: str) -> None:
         """Ganzen Ordner umbenennen oder verschieben (zum Einsortieren)."""
 
@@ -52,6 +56,15 @@ class OrdnerAblage(Ablage):
 
     def lesen(self, pfad: str) -> bytes:
         return self._ziel(pfad).read_bytes()
+
+    def loeschen(self, pfad: str) -> None:
+        import shutil
+
+        ziel = self._ziel(pfad)
+        if ziel.is_dir():
+            shutil.rmtree(ziel)
+        else:
+            ziel.unlink(missing_ok=True)
 
     def verschieben(self, ordner: str, ziel: str) -> None:
         neu = self._ziel(ziel)

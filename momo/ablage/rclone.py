@@ -54,6 +54,18 @@ class RcloneAblage(Ablage):
         praefix = f"{ordner.strip('/')}/" if ordner else ""
         return sorted(praefix + z for z in roh.decode().splitlines() if z)
 
+    def loeschen(self, pfad: str) -> None:
+        for befehl in ("purge", "deletefile"):  # purge für Ordner, deletefile für Dateien
+            try:
+                self._rclone(befehl, self._pfad(pfad))
+                return
+            except AblageFehler as e:
+                if "not found" in str(e).lower() or "doesn't exist" in str(e).lower():
+                    continue
+                if befehl == "purge" and ("not a directory" in str(e).lower() or "is a file" in str(e).lower()):
+                    continue
+                raise
+
     def verschieben(self, ordner: str, ziel: str) -> None:
         # Nextcloud/WebDAV verschiebt auf dem Server; der leere alte Ordner wird danach entfernt
         self._rclone("move", self._pfad(ordner), self._pfad(ziel), "--delete-empty-src-dirs")

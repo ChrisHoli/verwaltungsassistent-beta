@@ -41,6 +41,7 @@ class Antwort:
     immer_vorlesen: bool = False  # auch wenn „nur Text“ eingestellt ist (z. B. „Lies mir das vor“)
     datei: str | None = None  # z. B. der fertige Antwortbrief als PDF
     vorlage: bool = False  # Antwortbrief-Vorlage: ihre Nachrichten-ID wird für die Freigabe gemerkt
+    merken_als: str | None = None  # Nachrichten-ID unter diesem Namen merken (z. B. die Löschfrage)
 
     @property
     def zum_vorlesen(self) -> str:

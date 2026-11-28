@@ -18,7 +18,7 @@ from . import saetze
 from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DATEI_UNBEKANNT, KEIN_BRIEF,
                         NICHT_VERSTANDEN, NOCH_NICHT, SPRACHE_AN, SPRACHE_AUS, Antwort)
 from . import antwortbrief as ab
-from . import miniapp
+from . import datenschutz, miniapp
 from .einstellungen import Einstellungen
 from .woerter import frage_nach_wort
 from .vorgaenge import ZEITZONE, ERLEDIGT, ERLEDIGT_ZITAT, JA, NEIN, Vorgaenge, erinnerung_text, frage_text, ueberblick_text
@@ -107,6 +107,16 @@ class Bote:
             self._senden(s.chat, self._zuhoeren(Path(s.file)))
             return
         self._senden(s.chat, self.antworten_auf(art, s.text or "", neu, zitiert))
+        self._datenschutz_einmal(s.chat)
+
+    def _datenschutz_hinweis(self) -> Antwort:
+        k = self.konfig
+        return Antwort(datenschutz.hinweis(k.ki, k.ablage, k.betreiber, k.aufheben_tage))
+
+    def _datenschutz_einmal(self, chat) -> None:
+        if not self.einstellungen.wert("datenschutz_gesagt"):
+            self._senden(chat, self._datenschutz_hinweis())
+            self.einstellungen.setzen("datenschutz_gesagt", True)
 
     # --- Sprechen statt tippen ---
     def _zuhoeren(self, datei: Path) -> Antwort:
@@ -126,6 +136,10 @@ class Bote:
 
     def antworten_auf(self, art: str, text: str, neu: bool, zitiert: int | None = None) -> Antwort:
         """Wünsche wie „Lies mir den Brief noch mal vor“ erledigt Momo selbst, alles andere das Gespräch."""
+        if art == "text" and not neu:
+            antwort = self._datenschutz_antwort(text, zitiert)
+            if antwort is not None:
+                return antwort
         if art == "text" and not neu:
             antwort = self._frist_antwort(text, zitiert)
             if antwort is not None:
@@ -365,7 +379,9 @@ class Bote:
         try:
             self._konto.get_message_by_id(app).send_webxdc_status_update({"payload": miniapp.stand(self.vorgaenge)}, "")
         except Exception as e:
-            log.warning("Mini-App nicht aufgefrischt: %s", str(e)[:150])
+            # z. B. nach der Aufbewahrungsfrist gelöscht: beim nächsten Brief schickt Momo eine neue
+            log.warning("Mini-App nicht aufgefrischt, wird neu geschickt: %s", str(e)[:150])
+            self.app_datei.unlink(missing_ok=True)
 
     def _bei_app(self, ereignis) -> None:
         """Bitten aus der Mini-App: vorlesen, erledigt, bestätigen, antworten."""
@@ -415,6 +431,49 @@ class Bote:
             self.briefe.ablage.schreiben("Fristen.txt", text.encode())
         except Exception as e:  # nicht wichtig genug, um etwas anderes aufzuhalten
             log.warning("Fristen-Übersicht nicht gespeichert: %s", str(e)[:150])
+
+    # --- Datenschutz: Hinweis und „Lösch alles von mir“ ---
+    def _datenschutz_antwort(self, text: str, zitiert: int | None) -> Antwort | None:
+        if datenschutz.LOESCH_JA.match(text):
+            frage = self.einstellungen.wert("loesch_frage") or {}
+            if not frage or time.time() - frage.get("zeit", 0) > 3600:
+                return Antwort("Ich weiß nicht, was ich löschen soll. Wenn du alles löschen willst, sag: "
+                               "Lösch alles von mir.")
+            if zitiert != frage.get("id"):
+                return Antwort("Damit ich sicher bin: Antworte bitte direkt auf meine Frage zum Löschen. "
+                               "Halte sie gedrückt, tipp auf Antworten und sag: Ja, löschen.")
+            self.alles_loeschen()
+            return Antwort(datenschutz.LOESCH_FERTIG)
+        if datenschutz.LOESCH_WUNSCH.search(text):
+            self.gespraech.merken("nutzer", text)
+            return Antwort(datenschutz.LOESCH_FRAGE, merken_als="loesch_frage")
+        if datenschutz.DATENSCHUTZ_FRAGE.search(text):
+            return self._gemerkt(text, self._datenschutz_hinweis())
+        return None
+
+    def alles_loeschen(self) -> None:
+        """Briefe, Fristen, Entwürfe, Gespräch und Chatverlauf bei Momo löschen. Kopplung und Konto bleiben."""
+        import shutil
+
+        for pfad in ("Briefe", "Fristen.txt"):
+            try:
+                self.briefe.ablage.loeschen(pfad)
+            except AblageFehler as e:
+                log.error("Löschen im Speicherort unvollständig: %s", str(e)[:150])
+        for name in datenschutz.PERSONENDATEIEN:
+            (self.konfig.daten / name).unlink(missing_ok=True)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        self.vorgaenge.daten = {"briefe": [], "chat": self.vorgaenge.chat}
+        self.vorgaenge._sichern()
+        self.gespraech.verlauf = []
+        self.gespraech._sichern()
+        self.einstellungen.setzen("datenschutz_gesagt", True)
+        if self._chat is not None and self._konto is not None:
+            try:
+                self._konto.delete_messages(self._chat.get_messages())
+            except Exception as e:
+                log.warning("Chatverlauf bei Momo nicht gelöscht: %s", str(e)[:150])
+        log.info("Alle Daten der Person gelöscht")
 
     def _gemerkt(self, frage: str, antwort: Antwort) -> Antwort:
         self.gespraech.merken("nutzer", frage)
@@ -538,6 +597,8 @@ class Bote:
             nachricht = chat.send_text(antwort.text)
         if antwort.datei:
             chat.send_message(file=antwort.datei)
+        if antwort.merken_als and nachricht is not None:
+            self.einstellungen.setzen(antwort.merken_als, {"id": nachricht.id, "zeit": time.time()})
         if antwort.vorlage and nachricht is not None:
             e = self.entwuerfe.entwurf()
             if e is not None:
@@ -562,6 +623,8 @@ class Bote:
             konto.set_config("bot", "1")
             konto.set_config("displayname", self.konfig.name)
             konto.add_transport_from_qr(self.konfig.chatmail_qr)
+        # Chat (mit Fotos und Sprachnachrichten) bei Momo nach der Frist löschen; Briefe liegen im Speicherort
+        konto.set_config("delete_device_after", str(self.konfig.aufheben_tage * 86400))
         return konto
 
     def _einladung_entfernen(self) -> None:

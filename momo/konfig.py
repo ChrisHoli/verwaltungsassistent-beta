@@ -20,6 +20,8 @@ class Konfig:
     ablage_ziel: str
     whisper: str = "small"
     absender: str = ""
+    betreiber: str = ""
+    aufheben_tage: int = 30
 
     @property
     def dc_ordner(self) -> Path:
@@ -45,4 +47,6 @@ class Konfig:
             ablage_ziel=u.get("MOMO_ABLAGE_ZIEL", str(daten / "ablage")).strip(),
             whisper=u.get("MOMO_WHISPER", "small").strip() or "small",
             absender=u.get("MOMO_ABSENDER", "").strip(),
+            betreiber=u.get("MOMO_BETREIBER", "").strip(),
+            aufheben_tage=int(u.get("MOMO_AUFHEBEN_TAGE", "30").strip() or 30),
         )

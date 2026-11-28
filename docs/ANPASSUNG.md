@@ -104,6 +104,14 @@ Jedes Dokument bekommt beim Lesen einen **Bereich** (Amt und Behörde, Gesundhei
 
 `momo/app/` wird als webxdc-App (`momo.xdc`) in den Chat geschickt, beim ersten gelesenen Brief von selbst und auf „Zeig mir meine Briefe“ / „Übersicht“. Sie zeigt „Bald wichtig“ (Fristen der nächsten 30 Tage als große Kacheln) und „Meine Briefe“ nach Bereichen, je Brief: Was ist das? Was musst du tun? Abgelegt unter. Knöpfe: Vorlesen (Momo schickt die Sprachnachricht), Erinnern, Erledigt, Antworten (startet V9). Drei Schriften (Atkinson Hyperlegible, Lexend, OpenDyslexic, OFL, liegen bei) und Schriftgröße wählbar. Die App lädt nichts aus dem Netz; Stand und Bitten laufen als webxdc-Aktualisierungen im verschlüsselten Chat.
 
+## Datenschutz und Sicherung (seit 28.11.2026)
+
+- **Hinweis beim ersten Kontakt** (`momo/datenschutz.py`): Momo sagt einmal in einfachen Worten, wo er läuft (`MOMO_BETREIBER`), dass der Chat verschlüsselt ist, dass Fotos und Sprache auf dem Gerät bleiben, an welche KI der Text geht (aus `MOMO_KI` gebaut, mit Land), wo die Briefe liegen und wie man alles löschen lässt. Auf „Was passiert mit meinen Daten?“ wiederholt er ihn.
+- **Aufbewahrung:** Den Chat mit Fotos und Sprachnachrichten löscht Momo bei sich nach `MOMO_AUFHEBEN_TAGE` (Standard 30; Delta-Chat-Einstellung `delete_device_after`). Die Briefe im Speicherort bleiben, bis die Person sie löschen lässt. Das Gespräch für die KI umfasst ohnehin nur die letzten 12 Nachrichten.
+- **„Lösch alles von mir“:** Momo fragt nach und löscht erst, wenn die Person direkt auf diese Frage mit „Ja, löschen“ antwortet (innerhalb einer Stunde): Briefe und `Fristen.txt` im Speicherort, Fristen, Entwürfe, Absender, Einstellungen, Gesprächsverlauf und den Chat bei Momo. Kopplung und Konto bleiben, damit die Person weiter schreiben kann.
+- **Sicherung:** Zu sichern sind der Datenordner `daten/` (darin das Delta-Chat-Konto mit Momos Schlüssel: ohne ihn muss neu gekoppelt werden) und der Speicherort. Wiederherstellen: Container stoppen, `daten/` zurückkopieren, starten. Auf holiwork-alpha erfasst die nächtliche restic-Sicherung `/home/christian` (also `~/momo/daten`) und die Nextcloud; die Wiederherstellung wurde am 28.11.2026 geprobt (Datenbank heil, Schlüssel vorhanden).
+- Vor dem Probelauf (V12) mit echten Briefen: Einverständnis der Person zu diesem Hinweis einholen.
+
 ## Kosten
 
 Delta Chat und chatmail kostenlos. KI: ChatGPT Go 8 €/Monat (falls der Abo-Weg klappt) oder API-Cent-Beträge. Speicher: vorhandene Cloud. Bot: vorhandener Server oder Raspberry Pi (einmalig ~80 €).

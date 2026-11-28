@@ -19,6 +19,9 @@ from .antworten import (BRIEF_ERSTE_SEITE, BRIEF_FEHLER, BRIEF_WEITERE_SEITE, DA
                         NICHT_VERSTANDEN, NOCH_NICHT, SPRACHE_AN, SPRACHE_AUS, Antwort)
 from . import antwortbrief as ab
 from . import datenschutz, miniapp
+from . import fakten as fk
+from . import post
+from .erklaeren import zeichenweise
 from .einstellungen import Einstellungen
 from .woerter import frage_nach_wort
 from .vorgaenge import ZEITZONE, ERLEDIGT, ERLEDIGT_ZITAT, JA, NEIN, Vorgaenge, erinnerung_text, frage_text, ueberblick_text
@@ -56,13 +59,16 @@ def art_von(view_type) -> str:
 
 class Bote:
     def __init__(self, konfig: Konfig, stimme: Stimme, gespraech: Gespraech, briefe: Briefablage,
-                 ohr: Ohr | None = None):
+                 ohr: Ohr | None = None, postfach: "post.Postfach | None" = None):
         self.konfig = konfig
         self.stimme = stimme
         self.ohr = ohr
+        self.postfach = postfach
+        self.mail_datei = konfig.daten / "mail_entwurf.eml"
         self.einstellungen = Einstellungen(konfig.daten, konfig.vorlesen)
         self.vorgaenge = Vorgaenge(konfig.daten)
-        self.entwuerfe = ab.Entwuerfe(konfig.daten, konfig.absender)
+        self.fakten = fk.Fakten(konfig.daten)
+        self.entwuerfe = ab.Entwuerfe(konfig.daten, konfig.absender, self.fakten)
         self._chat = None  # Chat der laufenden Nachricht, für Zwischenmeldungen und das PDF
         self._konto = None
         self.app_datei = konfig.daten / "app.json"
@@ -144,6 +150,14 @@ class Bote:
             antwort = self._frist_antwort(text, zitiert)
             if antwort is not None:
                 return self._gemerkt(text, antwort)
+        if art == "text" and not neu:
+            antwort = self._fakten_antwort(text)
+            if antwort is not None:
+                return antwort
+        if art == "text" and not neu:
+            antwort = self._mail_antwort(text, zitiert)
+            if antwort is not None:
+                return antwort
         wunsch = saetze.erkennen(text) if art == "text" and not neu else None
         if art == "text" and not neu:
             aktiv = bool(self.entwuerfe.zustand())
@@ -254,8 +268,9 @@ class Bote:
         self._zwischen("Ich schreibe deinen Brief. Das dauert einen Moment.")
         try:
             brieftext = self._brieftext(brief)
-            e = (ab.aendern(self.gespraech.ki, entwurf, brief, brieftext, wunsch) if entwurf
-                 else ab.entwerfen(self.gespraech.ki, brief, brieftext, wunsch, nummer))
+            gemerkt = self.fakten.als_text()
+            e = (ab.aendern(self.gespraech.ki, entwurf, brief, brieftext, wunsch, gemerkt) if entwurf
+                 else ab.entwerfen(self.gespraech.ki, brief, brieftext, wunsch, nummer, gemerkt))
         except KiFehler as f:
             log.error("KI beim Briefschreiben: %s", f.art)
             return Antwort(FEHLER.get(f.art, FEHLER["sonstig"]))
@@ -276,9 +291,15 @@ class Bote:
         except AblageFehler as f:
             log.warning("Antwortbrief nicht in der Ablage: %s", str(f)[:150])
         self.entwuerfe.leeren()
+        self.einstellungen.setzen("letzter_antwortbrief", {
+            "brief": e.brief, "pdf": datei.name, "pdf_ablage": f"{brief['vorgang']}/antwortbriefe/antwort-{stempel}.pdf",
+            "betreff": t["betreff"], "bezug": t["bezug"],
+            "text": "\n\n".join([t["anrede"], t["text"], t["gruss"] + "\n" + t["name"]]), "zeit": time.time()})
         log.info("Antwortbrief als PDF fertig")
         hinweis = ("Hier ist dein Brief als PDF. Du kannst ihn ausdrucken, unterschreiben und abschicken. "
-                   "Oder du lädst ihn hoch oder schickst ihn per E-Mail. Ich verschicke nichts selbst.")
+                   "Oder du lädst ihn hoch.")
+        if self.postfach is not None:
+            hinweis += " Ich kann ihn auch als E-Mail vorbereiten. Dann sag: Als E-Mail."
         if not e.anschrift_sicher:
             hinweis += " Denk daran: Die Adresse vom Amt musst du noch dazuschreiben."
         return Antwort(hinweis, datei=str(datei))
@@ -431,6 +452,166 @@ class Bote:
             self.briefe.ablage.schreiben("Fristen.txt", text.encode())
         except Exception as e:  # nicht wichtig genug, um etwas anderes aufzuhalten
             log.warning("Fristen-Übersicht nicht gespeichert: %s", str(e)[:150])
+
+    # --- E-Mail: Entwurf ins Postfach, Abschicken nur nach Bestätigung ---
+    MAIL_WUNSCH = re.compile(r"\b(als|per)\s+e-?mail\b|\b(e-?mail|mail)\b.{0,25}\b(schick|vorbereit|schreib|mach)"
+                             r"|\bmail(e|en)?\s+(das|den brief|ihn)\b", re.I)
+    ABSCHICKEN = re.compile(r"^\s*ja,?\s*(abschicken|absenden|senden|schick (sie|es|die mail) ab)[\s.!]*$", re.I)
+
+    @staticmethod
+    def _adresse_sprechbar(adresse: str) -> str:
+        return (adresse.replace("@", " ät ").replace(".", " Punkt ").replace("-", " Strich ")
+                .replace("_", " Unterstrich "))
+
+    def _mail_antwort(self, text: str, zitiert: int | None) -> Antwort | None:
+        zustand = self.einstellungen.wert("mail") or {}
+        if self.ABSCHICKEN.match(text):
+            frage = self.einstellungen.wert("mail_frage") or {}
+            if not frage or not self.mail_datei.exists() or time.time() - frage.get("zeit", 0) > 86400:
+                return Antwort("Ich habe gerade keine E-Mail zum Abschicken.")
+            if zitiert != frage.get("id"):
+                return self._gemerkt(text, Antwort(
+                    "Damit ich sicher bin, welche E-Mail du meinst: Antworte bitte direkt auf meine Nachricht zur "
+                    "E-Mail. Halte sie gedrückt, tipp auf Antworten und sag: Ja, abschicken."))
+            from email import message_from_bytes, policy
+
+            m = message_from_bytes(self.mail_datei.read_bytes(), policy=policy.default)
+            try:
+                self.postfach.senden(m)
+            except post.PostFehler as f:
+                log.error("E-Mail nicht gesendet: %s", str(f)[:200])
+                return Antwort("Die E-Mail konnte ich nicht abschicken. Sie liegt weiter bei deinen Entwürfen. "
+                               "Du kannst sie dort selbst abschicken.")
+            self.mail_datei.unlink(missing_ok=True)
+            self.einstellungen.setzen("mail_frage", None)
+            log.info("E-Mail nach Bestätigung gesendet")
+            return self._gemerkt(text, Antwort(f"Die E-Mail an {m['To']} ist abgeschickt.",
+                                               sprechtext=f"Die E-Mail an {self._adresse_sprechbar(str(m['To']))} "
+                                                          "ist abgeschickt."))
+        if zustand.get("warte") == "empfaenger" and time.time() - zustand.get("zeit", 0) < 3600:
+            if ab.ABBRECHEN.match(text):
+                self.einstellungen.setzen("mail", None)
+                return self._gemerkt(text, Antwort("In Ordnung. Keine E-Mail."))
+            kandidaten = zustand.get("kandidaten") or []
+            zahl = re.search(r"\b(\d|eins|zwei|drei|vier|fünf)\b", text.lower())
+            zahlen = {"eins": 1, "zwei": 2, "drei": 3, "vier": 4, "fünf": 5}
+            adresse = post.adresse_aus_gesprochenem(text)
+            if adresse is None and zahl and kandidaten:
+                n = int(zahl.group(1)) if zahl.group(1).isdigit() else zahlen[zahl.group(1)]
+                if 1 <= n <= len(kandidaten):
+                    adresse = kandidaten[n - 1]
+            if adresse is None:
+                return self._gemerkt(text, Antwort("Die Adresse habe ich nicht verstanden. Sag sie bitte so: "
+                                                   "max punkt muster ät beispiel punkt de. Oder schreib sie mir."))
+            self.einstellungen.setzen("mail", None)
+            return self._gemerkt(text, self._mail_entwerfen(adresse, adresse in kandidaten))
+        if not self.MAIL_WUNSCH.search(text):
+            return None
+        if self.postfach is None:
+            return self._gemerkt(text, Antwort(
+                "Für E-Mails brauche ich Zugang zu deinem E-Mail-Postfach. Den richtet der Betreiber ein. "
+                "Bis dahin kannst du den PDF-Brief selbst an eine E-Mail anhängen."))
+        letzter = self.einstellungen.wert("letzter_antwortbrief") or {}
+        if not letzter or time.time() - letzter.get("zeit", 0) > 7 * 86400:
+            return self._gemerkt(text, Antwort("Zuerst schreiben wir zusammen einen Brief. Sag zum Beispiel: "
+                                               "Ich will der Versicherung antworten."))
+        brief = self.vorgaenge.daten["briefe"][letzter["brief"]]
+        try:
+            kandidaten = post.adressen_im_text(self._brieftext(brief))
+        except AblageFehler:
+            kandidaten = []
+        kandidaten = [k for k in kandidaten if k != (self.postfach.z.adresse or "").lower()][:5]
+        if len(kandidaten) == 1:
+            return self._gemerkt(text, self._mail_entwerfen(kandidaten[0], True))
+        self.einstellungen.setzen("mail", {"warte": "empfaenger", "kandidaten": kandidaten, "zeit": time.time()})
+        if kandidaten:
+            liste = "\n".join(f"{i}. {k}" for i, k in enumerate(kandidaten, start=1))
+            return self._gemerkt(text, Antwort(
+                f"Im Brief stehen mehrere E-Mail-Adressen:\n{liste}\nWelche soll es sein? Sag die Nummer.",
+                sprechtext="Im Brief stehen mehrere E-Mail-Adressen. " + " ".join(
+                    f"Nummer {i}: {self._adresse_sprechbar(k)}." for i, k in enumerate(kandidaten, start=1))
+                + " Welche soll es sein? Sag die Nummer."))
+        return self._gemerkt(text, Antwort("Im Brief steht keine E-Mail-Adresse. An welche Adresse soll die E-Mail "
+                                           "gehen? Sag sie mir oder schreib sie."))
+
+    def _mail_entwerfen(self, an: str, aus_dem_brief: bool) -> Antwort:
+        letzter = self.einstellungen.wert("letzter_antwortbrief") or {}
+        name = self.fakten.wert("Name") or ""
+        betreff = letzter.get("betreff", "Mein Schreiben")
+        if letzter.get("bezug"):
+            betreff += " – " + "; ".join(letzter["bezug"])
+        try:
+            pdf = self.briefe.ablage.lesen(letzter["pdf_ablage"])
+        except (AblageFehler, KeyError):
+            pdf = None
+        text = letzter.get("text", "") + ("\n\nAnlage: mein Schreiben als PDF" if pdf else "")
+        m = post.nachricht_bauen(name, self.postfach.z.adresse, an, betreff, text,
+                                 (letzter.get("pdf", "Antwort.pdf"), pdf) if pdf else None)
+        try:
+            ordner = self.postfach.entwurf_ablegen(m)
+        except post.PostFehler as f:
+            log.error("E-Mail-Entwurf nicht abgelegt: %s", str(f)[:200])
+            return Antwort("Ich komme gerade nicht an dein E-Mail-Postfach. Bitte versuch es später noch einmal.")
+        self.mail_datei.write_bytes(m.as_bytes())
+        log.info("E-Mail-Entwurf abgelegt (mit PDF: %s)", bool(pdf))
+        herkunft = "Die Adresse steht im Brief." if aus_dem_brief else "Die Adresse hast du mir gesagt."
+        satz = (f"Die E-Mail an {an} liegt jetzt in deinem Postfach bei „{ordner}“"
+                + (", mit dem Brief als PDF." if pdf else ".") + f" {herkunft} Du kannst sie dort ansehen und "
+                "selbst abschicken.")
+        sprechen = (f"Die E-Mail an {self._adresse_sprechbar(an)} liegt jetzt in deinem Postfach bei den Entwürfen"
+                    + (", mit dem Brief als PDF." if pdf else ".") + f" {herkunft} Du kannst sie dort ansehen und "
+                    "selbst abschicken.")
+        if self.postfach.z.senden:
+            frage = (" Oder ich schicke sie für dich ab. Prüf vorher die Adresse. Wenn sie stimmt, antworte auf diese "
+                     "Nachricht mit: Ja, abschicken.")
+            return Antwort(satz + frage, sprechtext=sprechen + frage, merken_als="mail_frage")
+        return Antwort(satz, sprechtext=sprechen)
+
+    # --- Fakten über die Person ---
+    @staticmethod
+    def _sprechbar(wert: str) -> str:
+        return zeichenweise(wert) if re.search(r"\d", wert) and "@" not in wert else wert
+
+    def _fakten_antwort(self, text: str) -> Antwort | None:
+        if fk.ALLES_ZEIGEN.search(text):
+            alle = list(self.fakten.alle().values())
+            if not alle:
+                return self._gemerkt(text, Antwort("Ich habe mir noch nichts über dich gemerkt. Sag zum Beispiel: "
+                                                   "Merk dir, meine Telefonnummer ist …"))
+            zeilen = [f"{e['bezeichnung']}: {e['wert']}" for e in alle]
+            return self._gemerkt(text, Antwort(
+                "Das habe ich mir gemerkt:\n" + "\n".join(zeilen),
+                sprechtext="Das habe ich mir gemerkt. " + " ".join(
+                    f"{e['bezeichnung']}: {self._sprechbar(e['wert'])}." for e in alle)))
+        v = fk.VERGESSEN.search(text)
+        if v:
+            e = self.fakten.finden(v.group(3))
+            if e:
+                self.fakten.vergessen(e["bezeichnung"])
+                return self._gemerkt(text, Antwort(f"In Ordnung. {e['bezeichnung']} habe ich vergessen."))
+        if fk.MERKEN.search(text) and len(text) > 12:
+            try:
+                eintraege = fk.aus_satz(self.gespraech.ki, text)
+            except KiFehler as f:
+                return Antwort(FEHLER.get(f.art, FEHLER["sonstig"]))
+            self.gespraech.merken("nutzer", "(Momo soll sich etwas merken)")
+            if not eintraege:
+                return Antwort("Was soll ich mir merken? Sag zum Beispiel: Merk dir, meine Versichertennummer ist "
+                               "A 1 2 3 4 5 6 7 8 9.")
+            for b, w in eintraege:
+                self.fakten.setzen(b, w)
+            log.info("Fakten gemerkt: %s", len(eintraege))
+            text_ = "Ich habe mir gemerkt:\n" + "\n".join(f"{b}: {w}" for b, w in eintraege)
+            sprechen = "Ich habe mir gemerkt. " + " ".join(f"{b}: {self._sprechbar(w)}." for b, w in eintraege)
+            schluss = " Wenn etwas falsch ist, sag es mir noch einmal richtig."
+            return Antwort(text_ + "\n" + schluss.strip(), sprechtext=sprechen + schluss)
+        f = fk.FRAGE.search(text)
+        if f:
+            e = self.fakten.finden(f.group(5))
+            if e:
+                return self._gemerkt(text, Antwort(f"{e['bezeichnung']}: {e['wert']}",
+                                                   sprechtext=f"{e['bezeichnung']}: {self._sprechbar(e['wert'])}."))
+        return None
 
     # --- Datenschutz: Hinweis und „Lösch alles von mir“ ---
     def _datenschutz_antwort(self, text: str, zitiert: int | None) -> Antwort | None:

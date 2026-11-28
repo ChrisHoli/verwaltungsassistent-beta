@@ -46,11 +46,13 @@ def hinweis(ki: str, ablage: str, betreiber: str, aufheben_tage: int) -> str:
         "Fotos und Sprachnachrichten lese ich auf diesem Computer. Zuhören und Vorlesen bleibt hier.",
         ki_satz,
         f"Deine Briefe lege ich {ABLAGE_BESCHREIBUNG.get(ablage, 'beim Betreiber')} ab.",
+        "Was du mir über dich sagst, damit ich es mir merke, bleibt auf diesem Computer. Die KI sieht es nur, "
+        "wenn ich einen Brief für dich schreibe.",
         f"Unseren Chat lösche ich bei mir nach {aufheben_tage} Tagen. Deine Briefe und Fristen bleiben, bis du sie löschen lässt.",
         "Wenn du willst, dass ich alles lösche, sag: Lösch alles von mir.",
     ])
 
 
 # Was Momo im Datenordner über die Person weiß (Delta-Chat-Konto und Kopplung bleiben)
-PERSONENDATEIEN = ("vorgaenge.json", "verlauf.json", "einstellungen.json", "letzter_brief.json", "entwurf.json",
+PERSONENDATEIEN = ("fakten.json", "mail_entwurf.eml", "vorgaenge.json", "verlauf.json", "einstellungen.json", "letzter_brief.json", "entwurf.json",
                    "absender.json", "app.json")

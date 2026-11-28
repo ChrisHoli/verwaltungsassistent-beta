@@ -104,6 +104,21 @@ Jedes Dokument bekommt beim Lesen einen **Bereich** (Amt und Behörde, Gesundhei
 
 `momo/app/` wird als webxdc-App (`momo.xdc`) in den Chat geschickt, beim ersten gelesenen Brief von selbst und auf „Zeig mir meine Briefe“ / „Übersicht“. Sie zeigt „Bald wichtig“ (Fristen der nächsten 30 Tage als große Kacheln) und „Meine Briefe“ nach Bereichen, je Brief: Was ist das? Was musst du tun? Abgelegt unter. Knöpfe: Vorlesen (Momo schickt die Sprachnachricht), Erinnern, Erledigt, Antworten (startet V9). Drei Schriften (Atkinson Hyperlegible, Lexend, OpenDyslexic, OFL, liegen bei) und Schriftgröße wählbar. Die App lädt nichts aus dem Netz; Stand und Bitten laufen als webxdc-Aktualisierungen im verschlüsselten Chat.
 
+## Was Momo sich merkt (seit 28.11.2026)
+
+Christian: „Es ist wichtig, dass Momo sich Fakten merken kann, die immer wieder gebraucht werden.“ `momo/fakten.py`, gespeichert in `daten/fakten.json`:
+- „Merk dir, meine Versichertennummer ist …“ → die KI macht daraus Einträge (Bezeichnung, Wert); Momo übernimmt nur Werte, die wirklich gesagt wurden, und liest sie zur Kontrolle vor (Nummern Zeichen für Zeichen).
+- „Was ist meine Versichertennummer?“, „Was weißt du über mich?“, „Vergiss meine Telefonnummer“ – ohne KI.
+- Name und Adresse für Antwortbriefe kommen aus den Fakten. Beim Briefschreiben sieht die KI die Fakten als markierte Daten („nur verwenden, wenn der Brief es braucht“), sonst nie.
+
+## E-Mail (seit 28.11.2026)
+
+Christian: „… die Möglichkeit, dass Momo einen Emailentwurf direkt in einem Emailprogramm aufmachen kann. Und eventuell eine pdf mit anhängen kann. Abschicken könnte auf Bestätigung hin funktionieren.“ `momo/post.py`:
+- Nach dem fertigen Antwortbrief: „Als E-Mail“ → Momo legt die E-Mail mit dem PDF über IMAP bei den **Entwürfen im Postfach der Person** ab (fehlt der Ordner, legt er ihn an). So erscheint sie in jedem E-Mail-Programm, Handy oder Computer. Ein `mailto:`-Link scheidet aus: Delta Chat fängt ihn selbst ab, und Anhänge gehen damit nicht.
+- Empfänger: steht genau eine Adresse im Brief, nimmt Momo sie (und sagt das); bei mehreren fragt er nach der Nummer, sonst nach der Adresse (gesprochen „max punkt muster ät beispiel punkt de“ geht).
+- **Abschicken** nur mit `MOMO_MAIL_SENDEN=ja` und wenn die Person auf genau diese Nachricht mit „Ja, abschicken“ antwortet (24 Stunden gültig). Momo schickt genau die E-Mail, die im Entwurf liegt, räumt den Entwurf weg und legt eine Kopie bei „Gesendet“ ab.
+- Zugang: `MOMO_MAIL_ADRESSE`, `MOMO_MAIL_PASSWORT` (App-Passwort), `MOMO_MAIL_IMAP`, `MOMO_MAIL_SMTP`.
+
 ## Datenschutz und Sicherung (seit 28.11.2026)
 
 - **Hinweis beim ersten Kontakt** (`momo/datenschutz.py`): Momo sagt einmal in einfachen Worten, wo er läuft (`MOMO_BETREIBER`), dass der Chat verschlüsselt ist, dass Fotos und Sprache auf dem Gerät bleiben, an welche KI der Text geht (aus `MOMO_KI` gebaut, mit Land), wo die Briefe liegen und wie man alles löschen lässt. Auf „Was passiert mit meinen Daten?“ wiederholt er ihn.

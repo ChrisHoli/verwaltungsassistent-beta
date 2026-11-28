@@ -83,7 +83,7 @@ def test_ganzer_ablauf(tmp_path):
     neue = b._senden(chat, a)
     assert "direkt auf den Brief" in b.antworten_auf("text", "passt", False, zitiert=vorlage.id).text  # alte Fassung
     fertig = b.antworten_auf("text", "Passt!", False, zitiert=neue.id)
-    assert fertig.datei and fertig.datei.endswith(".pdf") and "verschicke nichts" in fertig.text
+    assert fertig.datei and fertig.datei.endswith(".pdf") and "ausdrucken" in fertig.text
     pdfs = [p for p in b.briefe.ablage.liste("Briefe/a/antwortbriefe")]
     assert pdfs and b.briefe.ablage.lesen(pdfs[0])[:4] == b"%PDF"
     assert b.entwuerfe.zustand() == {}

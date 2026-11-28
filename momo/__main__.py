@@ -9,6 +9,7 @@ from .ki import anbieter_waehlen
 from .konfig import Konfig
 from .stimme import Stimme
 from .zuhoeren import Ohr
+from . import post
 
 
 def main() -> None:
@@ -30,7 +31,12 @@ def main() -> None:
                  ki.name, konfig.ablage, ablage_ok, konfig.vorlesen, "da" if stimme.verfuegbar else "fehlt",
                  "da" if ohr.verfuegbar else "fehlt", konfig.whisper)
     gespraech = Gespraech(ki, konfig.name, konfig.daten / "verlauf.json")
-    Bote(konfig, stimme, gespraech, Briefablage(ablage), ohr).starten()
+    import os
+
+    zugang = post.Zugang.aus_umgebung(os.environ)
+    logging.info("E-Mail: %s", "nicht eingerichtet" if zugang is None else
+                 f"Entwürfe ins Postfach, Abschicken {'nach Bestätigung' if zugang.senden else 'aus'}")
+    Bote(konfig, stimme, gespraech, Briefablage(ablage), ohr, post.Postfach(zugang) if zugang else None).starten()
 
 
 if __name__ == "__main__":

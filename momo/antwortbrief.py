@@ -130,23 +130,31 @@ def _ergebnis(roh: dict | None, brieftext: str, quellen: list[str], fallback_ans
     }
 
 
-def entwerfen(ki: KiAnbieter, brief: dict, brieftext: str, wunsch: str, nummer: int) -> Entwurf:
+def _fakten_block(fakten: str) -> str:
+    if not fakten:
+        return ""
+    return ("\n\nWas über den Menschen bekannt ist (nur verwenden, wenn der Brief es braucht, z. B. Geburtsdatum "
+            f"oder Versichertennummer; Name und Adresse setzt Momo selbst):\n{_markiert('FAKTEN', fakten[:2000])}")
+
+
+def entwerfen(ki: KiAnbieter, brief: dict, brieftext: str, wunsch: str, nummer: int, fakten: str = "") -> Entwurf:
     fallback = [brief["absender"]] if brief.get("absender") else []
     frage = (f"Brief der Behörde:\n{_markiert('BRIEF', brieftext[:12000])}\n\n"
-             f"Das will der Mensch antworten:\n{_markiert('WUNSCH', wunsch[:3000])}")
+             f"Das will der Mensch antworten:\n{_markiert('WUNSCH', wunsch[:3000])}" + _fakten_block(fakten))
     roh = json_aus(ki.fragen(ANWEISUNG, [Nachricht("nutzer", frage)]))
-    e = _ergebnis(roh, brieftext, [wunsch, brieftext], fallback)
+    e = _ergebnis(roh, brieftext, [wunsch, brieftext, fakten], fallback)
     return Entwurf(nummer, e["betreff"], e["text"], e["anschrift"], e["anschrift_sicher"], e["rueckfrage"],
                    e["kurz"], zeit=time.time(), zahlen_pruefen=e["zahlen_pruefen"])
 
 
-def aendern(ki: KiAnbieter, entwurf: Entwurf, brief: dict, brieftext: str, aenderung: str) -> Entwurf:
+def aendern(ki: KiAnbieter, entwurf: Entwurf, brief: dict, brieftext: str, aenderung: str,
+           fakten: str = "") -> Entwurf:
     frage = (f"Brief der Behörde:\n{_markiert('BRIEF', brieftext[:12000])}\n\n"
              f"Bisheriger Brieftext:\n{_markiert('ENTWURF', entwurf.text)}\n\n"
-             f"Das soll sich ändern:\n{_markiert('WUNSCH', aenderung[:3000])}")
+             f"Das soll sich ändern:\n{_markiert('WUNSCH', aenderung[:3000])}" + _fakten_block(fakten))
     roh = json_aus(ki.fragen(ANWEISUNG + "\n\n" + AENDERN, [Nachricht("nutzer", frage)]))
     fallback = entwurf.anschrift if entwurf.anschrift_sicher else ([brief["absender"]] if brief.get("absender") else [])
-    e = _ergebnis(roh, brieftext, [aenderung, brieftext, entwurf.text], fallback)
+    e = _ergebnis(roh, brieftext, [aenderung, brieftext, entwurf.text, fakten], fallback)
     if not e["anschrift_sicher"] and entwurf.anschrift_sicher:
         e["anschrift"], e["anschrift_sicher"] = entwurf.anschrift, True
     return Entwurf(entwurf.brief, e["betreff"], e["text"], e["anschrift"], e["anschrift_sicher"], e["rueckfrage"],
@@ -263,7 +271,8 @@ def pdf(t: dict, ziel: Path) -> Path:
 class Entwuerfe:
     """Der eine offene Entwurf und der Absender, gespeichert im Datenordner."""
 
-    def __init__(self, ordner: Path, absender_vorgabe: str = ""):
+    def __init__(self, ordner: Path, absender_vorgabe: str = "", fakten=None):
+        self.fakten = fakten
         self.datei = Path(ordner) / "entwurf.json"
         self.absender_datei = Path(ordner) / "absender.json"
         self.vorgabe = [z.strip() for z in absender_vorgabe.split("|") if z.strip()]
@@ -283,11 +292,16 @@ class Entwuerfe:
 
     @property
     def absender(self) -> list[str]:
+        if self.fakten is not None and self.fakten.absender():
+            return self.fakten.absender()
         return self._lesen(self.absender_datei).get("zeilen") or self.vorgabe
 
     @absender.setter
     def absender(self, zeilen: list[str]) -> None:
-        self._schreiben(self.absender_datei, {"zeilen": zeilen})
+        if self.fakten is not None:
+            self.fakten.absender_setzen(zeilen)
+        else:
+            self._schreiben(self.absender_datei, {"zeilen": zeilen})
 
     def zustand(self) -> dict:
         d = self._lesen(self.datei)

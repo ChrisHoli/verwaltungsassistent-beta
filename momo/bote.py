@@ -21,6 +21,7 @@ from . import antwortbrief as ab
 from . import datenschutz, miniapp
 from . import fakten as fk
 from . import post
+from . import unterlagen as ul
 from .erklaeren import zeichenweise
 from .einstellungen import Einstellungen
 from .woerter import frage_nach_wort
@@ -190,7 +191,20 @@ class Bote:
                 return self._gemerkt(text, Antwort(KEIN_BRIEF))
             # Nochmal vorlesen heißt: wirklich vorlesen, auch wenn sonst nur Text eingestellt ist
             return self._gemerkt(text, Antwort(brief.text, sprechtext=brief.sprechtext, immer_vorlesen=True))
-        return self.gespraech.antworten(art, text, neu)
+        return self.gespraech.antworten(art, text, neu, self._unterlagen(text) if art == "text" and not neu else "")
+
+    def _unterlagen(self, text: str) -> str:
+        """Brief, um den es gerade geht (genannter Absender, sonst der neueste), im Wortlaut plus Liste aller Briefe."""
+        briefe = self.vorgaenge.daten["briefe"]
+        if not briefe:
+            return ""
+        nummer = self._welcher_brief(text)
+        try:
+            brieftext = self._brieftext(briefe[nummer]) if nummer is not None else ""
+        except AblageFehler as e:
+            log.warning("Brieftext für die Frage nicht lesbar: %s", str(e)[:150])
+            brieftext = ""
+        return ul.zusammenstellen(briefe, nummer, brieftext)
 
     def _frist_antwort(self, text: str, zitiert: int | None) -> Antwort | None:
         """Ja / Nein / erledigt auf Momos Frage nach einer Frist oder auf eine Erinnerung."""
@@ -334,7 +348,7 @@ class Bote:
             if ab.ABBRECHEN.match(text):
                 self.entwuerfe.leeren()
                 return self._gemerkt(text, Antwort("In Ordnung. Den Brief lasse ich weg."))
-            if zitiert == entwurf.vorlage_id or (zitiert is None and not text.rstrip().endswith("?")
+            if (zitiert is not None and zitiert == entwurf.vorlage_id) or (zitiert is None and not ul.ist_frage(text)
                                                   and frage_nach_wort(text) is None):
                 self.gespraech.merken("nutzer", text)
                 return self._entwerfen(entwurf.brief, text, entwurf)
@@ -703,6 +717,7 @@ class Bote:
                     self.briefe.ergebnis_ablegen(vorgang, seiten, None)
                     self._senden(chat, Antwort(FEHLER.get(e.art, FEHLER["sonstig"])))
                     return
+                self.entwuerfe.leeren()  # ein offener Antwortbrief gehört zum vorigen Brief
                 log.info("Brief gelesen %s: pruefen=%s, verdacht=%s, fristen=%s", vorgang, ergebnis["pruefen"],
                          ergebnis["verdacht_manipulation"], len(ergebnis["fristen"]))
                 bereich = "Zum Prüfen" if ergebnis["verdacht_manipulation"] else ergebnis["kategorie"]
